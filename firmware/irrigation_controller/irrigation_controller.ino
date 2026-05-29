@@ -11,7 +11,8 @@ const char* WIFI_SSID     = "YOUR_SSID";
 const char* WIFI_PASSWORD = "YOUR_PASSWORD";
 
 // ── Central server ────────────────────────────────────────────────────────────
-const char* SERVER_URL    = "http://YOUR_SERVER_IP:3000";  // central Node.js API
+const char* SERVER_URL    = "https://irrigation.paradisepond.tech";
+const char* API_KEY       = "SAME_KEY_AS_ESP32_API_KEY_IN_CONFIG_PHP";
 
 // ── Hardware pin assignments ──────────────────────────────────────────────────
 #define LED_BUILTIN_PIN   2
@@ -148,13 +149,26 @@ void reportSensors() {
     tempSensors.requestTemperatures();
     doc["temp_c"] = tempSensors.getTempCByIndex(0);
 
+    // Include DS18B20 address so server can store per-sensor records
+    DeviceAddress addr;
+    if (tempSensors.getAddress(addr, 0)) {
+        char addrStr[17];
+        for (int i = 0; i < 8; i++) sprintf(addrStr + i * 2, "%02X", addr[i]);
+        addrStr[16] = '\0';
+        doc["sensor_addr"] = addrStr;
+    }
+
     String body;
     serializeJson(doc, body);
 
     HTTPClient http;
-    http.begin(String(SERVER_URL) + "/api/sensors");
+    http.begin(String(SERVER_URL) + "/api/sensors.php");
     http.addHeader("Content-Type", "application/json");
-    http.POST(body);
+    http.addHeader("Authorization", String("Bearer ") + API_KEY);
+    int code = http.POST(body);
+    if (code != 200) {
+        Serial.printf("Sensor report failed: HTTP %d\n", code);
+    }
     http.end();
 }
 
