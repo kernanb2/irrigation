@@ -4,14 +4,14 @@ require_once __DIR__ . '/../src/Database.php';
 require_once __DIR__ . '/../src/Auth.php';
 
 Auth::start();
-if (Auth::check()) { header('Location: /'); exit; }
+if (Auth::check()) { header('Location: ' . BASE_PATH . '/'); exit; }
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = trim($_POST['username'] ?? '');
     $pass = $_POST['password'] ?? '';
     if (Auth::login($user, $pass)) {
-        header('Location: /');
+        header('Location: ' . BASE_PATH . '/');
         exit;
     }
     $error = 'Invalid username or password.';

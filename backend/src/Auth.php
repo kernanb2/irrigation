@@ -29,7 +29,7 @@ class Auth {
 
     public static function require(): void {
         if (!self::check()) {
-            header('Location: /login.php');
+            header('Location: ' . BASE_PATH . '/login.php');
             exit;
         }
     }
