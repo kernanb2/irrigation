@@ -208,7 +208,7 @@ function renderEvents(events) {
           <td>${new Date(ev.executed_at).toLocaleString()}</td>
           <td>Zone ${ev.zone_id} — ${escHtml(ev.zone_name)}</td>
           <td><span style="color:${ev.action==='open'?'var(--green)':'var(--muted)'}">${ev.action.toUpperCase()}</span></td>
-          <td>${ev.trigger}</td>
+          <td>${ev.trigger_type}</td>
           <td>${escHtml(ev.initiated_by || '—')}</td>
         </tr>`).join('');
 }

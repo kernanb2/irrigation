@@ -62,7 +62,7 @@ $newState = $open ? 'open' : 'closed';
 $db->prepare("UPDATE zones SET valve_state = ?, last_state_change = NOW() WHERE id = ?")
    ->execute([$newState, $zoneId]);
 
-$db->prepare("INSERT INTO valve_events (zone_id, action, trigger, initiated_by) VALUES (?, ?, 'manual', ?)")
+$db->prepare("INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by) VALUES (?, ?, 'manual', ?)")
    ->execute([$zoneId, $open ? 'open' : 'close', Auth::user()]);
 
 echo json_encode(['success' => true, 'zone_id' => $zoneId, 'state' => $newState]);

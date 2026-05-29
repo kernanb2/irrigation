@@ -11,8 +11,8 @@ const char* WIFI_SSID     = "YOUR_SSID";
 const char* WIFI_PASSWORD = "YOUR_PASSWORD";
 
 // ── Central server ────────────────────────────────────────────────────────────
-const char* SERVER_URL    = "https://irrigation.paradisepond.tech";
-const char* API_KEY       = "SAME_KEY_AS_ESP32_API_KEY_IN_CONFIG_PHP";
+const char* SERVER_URL    = "http://paradisepond.tech/irrigation";
+const char* API_KEY       = "293bdcd6c3e91dfb08d8c31a2c9ff8bf13ff634eafd812feaf2ab867d55cc145";
 
 // ── Hardware pin assignments ──────────────────────────────────────────────────
 #define LED_BUILTIN_PIN   2

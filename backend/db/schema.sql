@@ -87,7 +87,7 @@ CREATE TABLE valve_events (
     id           INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     zone_id      TINYINT UNSIGNED NOT NULL,
     action       ENUM('open','close') NOT NULL,
-    trigger      ENUM('manual','schedule','auto_moisture','auto_temperature') NOT NULL,
+    trigger_type ENUM('manual','schedule','auto_moisture','auto_temperature') NOT NULL,
     initiated_by VARCHAR(64),
     executed_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     success      BOOLEAN NOT NULL DEFAULT TRUE,

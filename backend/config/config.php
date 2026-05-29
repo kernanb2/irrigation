@@ -3,16 +3,16 @@
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'irrigation');
 define('DB_USER', 'irrigation_user');      // create with limited privileges
-define('DB_PASS', 'CHANGE_THIS_PASSWORD');
+define('DB_PASS', 'Irr!gate2024Pond');
 define('DB_CHARSET', 'utf8mb4');
 
 // ── ESP-32 API key ────────────────────────────────────────────────────────────
 // ESP-32 units include this in Authorization: Bearer <key> when posting sensor data
-define('ESP32_API_KEY', 'CHANGE_THIS_API_KEY');
+define('ESP32_API_KEY', '293bdcd6c3e91dfb08d8c31a2c9ff8bf13ff634eafd812feaf2ab867d55cc145');
 
 // ── Application ───────────────────────────────────────────────────────────────
 define('APP_NAME', 'Irrigation Controller');
-define('APP_URL',  'https://irrigation.paradisepond.tech');
+define('APP_URL',  'http://paradisepond.tech/irrigation');
 define('TIMEZONE', 'America/Chicago');  // adjust to your timezone
 
 // ── Session ───────────────────────────────────────────────────────────────────

@@ -61,7 +61,7 @@ foreach ($schedules as $sched) {
     if ($result['success']) {
         $db->prepare("UPDATE zones SET valve_state = 'open', last_state_change = NOW() WHERE id = ?")
            ->execute([$sched['zone_id']]);
-        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger, initiated_by) VALUES (?, 'open', 'schedule', 'system')")
+        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by) VALUES (?, 'open', 'schedule', 'system')")
            ->execute([$sched['zone_id']]);
 
         // Schedule close — store in a pending_closes table or use a background sleep
@@ -83,7 +83,7 @@ foreach ($closes as $c) {
     if ($result['success']) {
         $db->prepare("UPDATE zones SET valve_state = 'closed', last_state_change = NOW() WHERE id = ?")
            ->execute([$c['zone_id']]);
-        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger, initiated_by) VALUES (?, 'close', 'schedule', 'system')")
+        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by) VALUES (?, 'close', 'schedule', 'system')")
            ->execute([$c['zone_id']]);
         $db->prepare("DELETE FROM pending_closes WHERE zone_id = ?")
            ->execute([$c['zone_id']]);

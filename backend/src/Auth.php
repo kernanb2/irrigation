@@ -6,7 +6,7 @@ class Auth {
             session_set_cookie_params([
                 'lifetime' => 0,
                 'path'     => '/',
-                'secure'   => true,
+                'secure'   => isset($_SERVER['HTTPS']),
                 'httponly' => true,
                 'samesite' => 'Strict',
             ]);
