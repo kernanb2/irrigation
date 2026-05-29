@@ -1,14 +1,11 @@
 Options -Indexes
 DirectoryIndex index.php index.html
 
-# Enable rewrite engine
 <IfModule mod_rewrite.c>
   RewriteEngine On
-</IfModule>
-
-# Deny direct access to config and src
-<IfModule mod_rewrite.c>
-  RewriteEngine On
+  # Pass Authorization header through to PHP (stripped by Apache mod_php by default)
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+  # Deny direct access to config and src
   RewriteRule ^(config|src)/  - [F,L]
 </IfModule>
 
