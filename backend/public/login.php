@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login — <?= APP_NAME ?></title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="<?= BASE_PATH ?>/css/style.css">
 </head>
 <body class="login-page">
   <div class="login-box">

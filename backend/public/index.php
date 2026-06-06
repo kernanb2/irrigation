@@ -10,7 +10,7 @@ Auth::require();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= APP_NAME ?></title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="<?= BASE_PATH ?>/css/style.css">
 </head>
 <body>
   <header>
@@ -19,7 +19,7 @@ Auth::require();
       <div class="header-right">
         <span class="user-label"><?= htmlspecialchars(Auth::user()) ?></span>
         <span id="clock"></span>
-        <a href="/logout.php" class="btn-logout">Sign Out</a>
+        <a href="<?= BASE_PATH ?>/logout.php" class="btn-logout">Sign Out</a>
       </div>
     </div>
   </header>
@@ -108,6 +108,7 @@ Auth::require();
     </div>
   </div>
 
-  <script src="/js/app.js"></script>
+  <script>const BASE = '<?= BASE_PATH ?>';</script>
+  <script src="<?= BASE_PATH ?>/js/app.js"></script>
 </body>
 </html>

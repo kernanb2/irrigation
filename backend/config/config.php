@@ -12,7 +12,7 @@ define('ESP32_API_KEY', '293bdcd6c3e91dfb08d8c31a2c9ff8bf13ff634eafd812feaf2ab86
 
 // ── Application ───────────────────────────────────────────────────────────────
 define('APP_NAME', 'Irrigation Controller');
-define('APP_URL',   'http://paradisepond.tech/irrigation');
+define('APP_URL',   'https://paradisepond.tech/irrigation');
 define('BASE_PATH', '/irrigation');
 define('TIMEZONE', 'America/Chicago');  // adjust to your timezone
 
