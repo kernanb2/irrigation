@@ -8,7 +8,6 @@ Auth::require();
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
     exit;
 }
@@ -18,7 +17,6 @@ $zoneId = (int)($body['zone_id'] ?? 0);
 $open   = (bool)($body['open']    ?? false);
 
 if ($zoneId < 1 || $zoneId > 15) {
-    http_response_code(400);
     echo json_encode(['error' => 'Invalid zone_id']);
     exit;
 }
@@ -29,7 +27,6 @@ $zone->execute([$zoneId]);
 $z = $zone->fetch();
 
 if (!$z) {
-    http_response_code(404);
     echo json_encode(['error' => 'Zone not found or disabled']);
     exit;
 }
@@ -42,7 +39,6 @@ if ($open && $z['is_special']) {
             SELECT id, valve_state FROM zones WHERE is_special = 1 AND id != {$z['id']} AND valve_state = 'open'
         ")->fetch();
         if ($otherSpecial) {
-            http_response_code(409);
             echo json_encode(['error' => 'Interlock: another special valve is already open']);
             exit;
         }
@@ -52,7 +48,7 @@ if ($open && $z['is_special']) {
 $result = Unit::valveCommand($z['unit_id'], $z['local_index'], $open);
 
 if (!$result['success']) {
-    http_response_code(502);
+    
     echo json_encode(['error' => $result['error']]);
     exit;
 }

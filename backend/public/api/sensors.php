@@ -7,18 +7,18 @@ require_once __DIR__ . '/../../src/Auth.php';
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405); echo json_encode(['error' => 'Method not allowed']); exit;
+     echo json_encode(['error' => 'Method not allowed']); exit;
 }
 
 if (!Auth::checkApiKey()) {
-    http_response_code(401); echo json_encode(['error' => 'Unauthorized']); exit;
+     echo json_encode(['error' => 'Unauthorized']); exit;
 }
 
 $body   = json_decode(file_get_contents('php://input'), true);
 $unitId = (int)($body['unit_id'] ?? 0);
 
 if ($unitId < 1 || $unitId > 3) {
-    http_response_code(400); echo json_encode(['error' => 'Invalid unit_id']); exit;
+     echo json_encode(['error' => 'Invalid unit_id']); exit;
 }
 
 $db = Database::get();

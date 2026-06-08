@@ -30,7 +30,7 @@ if ($method === 'POST') {
     $skipThresh  = (int)($body['skip_threshold'] ?? 60);
 
     if ($zoneId < 1 || !$cron || $duration < 1 || $duration > MAX_ZONE_DURATION_SEC) {
-        http_response_code(400);
+        
         echo json_encode(['error' => 'Invalid schedule parameters']);
         exit;
     }
@@ -46,7 +46,7 @@ if ($method === 'POST') {
 
 if ($method === 'DELETE') {
     $id = (int)($body['id'] ?? 0);
-    if ($id < 1) { http_response_code(400); echo json_encode(['error' => 'Invalid id']); exit; }
+    if ($id < 1) {  echo json_encode(['error' => 'Invalid id']); exit; }
     $db->prepare("DELETE FROM schedules WHERE id = ?")->execute([$id]);
     echo json_encode(['success' => true]);
     exit;
@@ -55,11 +55,11 @@ if ($method === 'DELETE') {
 if ($method === 'PATCH') {
     $id      = (int)($body['id']      ?? 0);
     $enabled = (bool)($body['enabled'] ?? false);
-    if ($id < 1) { http_response_code(400); echo json_encode(['error' => 'Invalid id']); exit; }
+    if ($id < 1) {  echo json_encode(['error' => 'Invalid id']); exit; }
     $db->prepare("UPDATE schedules SET enabled = ? WHERE id = ?")->execute([$enabled, $id]);
     echo json_encode(['success' => true]);
     exit;
 }
 
-http_response_code(405);
+
 echo json_encode(['error' => 'Method not allowed']);
