@@ -138,6 +138,7 @@ void reportSensors() {
 
     StaticJsonDocument<512> doc;
     doc["unit_id"] = unitId;
+    doc["ip"]      = WiFi.localIP().toString();
 
     JsonArray moisture = doc.createNestedArray("moisture");
     for (int i = 0; i < NUM_ZONES; i++) {

@@ -23,10 +23,19 @@ if ($unitId < 1 || $unitId > 3) {
 
 $db = Database::get();
 
-// Update unit last_seen and IP
-$ip = $_SERVER['REMOTE_ADDR'] ?? '';
-$db->prepare("UPDATE units SET last_seen = NOW(), ip_address = ? WHERE id = ?")
-   ->execute([$ip, $unitId]);
+// Update unit last_seen and IP — use IP from payload (REMOTE_ADDR is Cloudflare's proxy)
+$ip = $body['ip'] ?? '';
+if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+    // Accept private IPs too (ESP-32 is on LAN) — just reject empty/loopback
+    $ip = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
+}
+if ($ip) {
+    $db->prepare("UPDATE units SET last_seen = NOW(), ip_address = ? WHERE id = ?")
+       ->execute([$ip, $unitId]);
+} else {
+    $db->prepare("UPDATE units SET last_seen = NOW() WHERE id = ?")
+       ->execute([$unitId]);
+}
 
 // Store moisture readings
 if (!empty($body['moisture']) && is_array($body['moisture'])) {
