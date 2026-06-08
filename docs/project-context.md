@@ -145,6 +145,11 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 - **Unit A:** provisioned and online at 192.168.1.118
 - **Units B & C:** not yet built
-- **In progress:** first valve bench test — Zone 1 (GPIO 4/5), one DRV8871, one Rainbird solenoid
-- **Power:** 12V LiPo → LM2596 #1 (9V for valves) + LM2596 #2 (5V for ESP32)
-- **Next step:** set LM2596 voltages, wire DRV8871 for Zone 1, test via web UI
+- **First valve bench test wired and ready — not yet powered up:**
+  - Zone 1 (GPIO 4 IN1, GPIO 5 IN2) → DRV8871 → Rainbird latching solenoid
+  - 9V battery (temporary) → DRV8871 VM (only 1 LM2596 on hand, more ordered)
+  - LM2596 set to 5.0V → ESP32 VIN
+  - Common GND: 9V battery −, LM2596 OUT−, ESP32 GND all tied together
+  - 100µF cap across DRV8871 VM and GND
+  - 1N4007 diode across OUT1–OUT2, cathode toward OUT1
+- **Next step:** power up, confirm ESP32 LED goes solid, test Zone 1 via web UI at 192.168.1.118
