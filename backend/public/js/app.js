@@ -2,6 +2,16 @@
 let zones = [], schedules = [], pendingZone = null;
 const POLL_MS = 15000;
 
+// ── API wrapper — redirects to login on session expiry ────────────────────────
+async function apiFetch(path, options = {}) {
+    const res = await fetch(BASE + path, options);
+    if (res.redirected || res.url.includes('login.php')) {
+        window.location = BASE + '/login.php';
+        throw new Error('session_expired');
+    }
+    return res;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     clockTick();
@@ -21,8 +31,8 @@ function clockTick() {
 async function fetchAll() {
     try {
         const [statusRes, eventsRes] = await Promise.all([
-            fetch(BASE + '/api/status.php'),
-            fetch(BASE + '/api/events.php'),
+            apiFetch('/api/status.php'),
+            apiFetch('/api/events.php'),
         ]);
         const status = await statusRes.json();
         const events = await eventsRes.json();
@@ -104,7 +114,7 @@ async function valveCmd(zoneId, open) {
     card.querySelectorAll('button').forEach(b => b.disabled = true);
 
     try {
-        const res  = await fetch(BASE + '/api/valve.php', {
+        const res  = await apiFetch('/api/valve.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ zone_id: zoneId, open }),
@@ -115,8 +125,10 @@ async function valveCmd(zoneId, open) {
         }
         fetchAll();
     } catch (e) {
-        alert('Network error — could not reach server.');
-        card.querySelectorAll('button').forEach(b => b.disabled = false);
+        if (e.message !== 'session_expired') {
+            alert('Network error — could not reach server.');
+            card.querySelectorAll('button').forEach(b => b.disabled = false);
+        }
     }
 }
 
@@ -167,7 +179,7 @@ async function submitSchedule(e) {
         skip_if_moist:   fd.get('skip_if_moist') === 'on',
         skip_threshold:  parseInt(fd.get('skip_threshold')),
     };
-    const res = await fetch(BASE + '/api/schedules.php', {
+    const res = await apiFetch('/api/schedules.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -178,7 +190,7 @@ async function submitSchedule(e) {
 }
 
 async function toggleSchedule(id, enabled) {
-    await fetch(BASE + '/api/schedules.php', {
+    await apiFetch('/api/schedules.php', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, enabled }),
@@ -188,7 +200,7 @@ async function toggleSchedule(id, enabled) {
 
 async function deleteSchedule(id) {
     if (!confirm('Delete this schedule?')) return;
-    await fetch(BASE + '/api/schedules.php', {
+    await apiFetch('/api/schedules.php', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
@@ -215,7 +227,7 @@ function renderEvents(events) {
 
 // ── Auto mode toggle ──────────────────────────────────────────────────────────
 async function toggleAutoMode(e) {
-    await fetch(BASE + '/api/settings.php', {
+    await apiFetch('/api/settings.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'auto_mode_enabled', value: e.target.checked ? 'true' : 'false' }),
