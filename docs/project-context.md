@@ -141,15 +141,22 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 ---
 
-## Build Status (2026-06-08)
+## Build Status (2026-06-10)
 
-- **Unit A:** provisioned and online at 192.168.1.118
+- **Unit A:** provisioned and online — IP is DHCP-assigned, was 192.168.1.124 last session (may change)
 - **Units B & C:** not yet built
-- **First valve bench test wired and ready — not yet powered up:**
+- **First valve bench test in progress:**
   - Zone 1 (GPIO 4 IN1, GPIO 5 IN2) → DRV8871 → Rainbird latching solenoid
   - 9V battery (temporary) → DRV8871 VM (only 1 LM2596 on hand, more ordered)
   - LM2596 set to 5.0V → ESP32 VIN
   - Common GND: 9V battery −, LM2596 OUT−, ESP32 GND all tied together
-  - 100µF cap across DRV8871 VM and GND
-  - 1N4007 diode across OUT1–OUT2, cathode toward OUT1
-- **Next step:** power up, confirm ESP32 LED goes solid, test Zone 1 via web UI at 192.168.1.118
+  - 8µF cap across DRV8871 VM and GND (temporary — 100µF caps on order)
+  - 1N4007 diode across OUT1–OUT2
+- **Bug found:** diode wired backwards — banded end (cathode) must face OUT1, currently reversed, clamping output to ~1.1V instead of 9V
+- **Next step:** reverse the 1N4007 diode, confirm solenoid clicks
+
+## Known Issues / Architecture Notes
+
+- **Server cannot reach ESP32 directly** — ESP32 is on private LAN (192.168.1.x), paradisepond.tech is on internet. Web UI valve commands fail with "could not reach unit". Fix planned: ESP32 polls server for pending commands instead of server pushing to ESP32.
+- **Do not connect LM2596 5V and USB simultaneously** — causes USB port to disappear from Mac. Disconnect LM2596 VIN wire before plugging in USB for flashing.
+- **temp_c = -127** means DS18B20 not connected — expected for now, no sensor wired yet.
