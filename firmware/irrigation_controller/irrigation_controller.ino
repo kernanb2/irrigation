@@ -12,7 +12,6 @@ const char* WIFI_PASSWORD = "YOUR_PASSWORD";
 
 // ── Central server ────────────────────────────────────────────────────────────
 const char* SERVER_URL    = "http://paradisepond.tech/irrigation";
-const char* API_KEY       = "293bdcd6c3e91dfb08d8c31a2c9ff8bf13ff634eafd812feaf2ab867d55cc145";
 
 // ── Hardware pin assignments ──────────────────────────────────────────────────
 #define LED_BUILTIN_PIN   2
@@ -37,6 +36,7 @@ OneWire         oneWire(ONE_WIRE_PIN);
 DallasTemperature tempSensors(&oneWire);
 
 uint8_t         unitId = 0;          // set once in NVS during provisioning
+String          apiKey;              // per-unit key, also set in NVS during provisioning
 bool            valveState[NUM_ZONES] = {false};
 unsigned long   lastSensorPoll = 0;
 
@@ -165,7 +165,7 @@ void reportSensors() {
     HTTPClient http;
     http.begin(String(SERVER_URL) + "/api/sensors.php");
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", String("Bearer ") + API_KEY);
+    http.addHeader("Authorization", String("Bearer ") + apiKey);
     int code = http.POST(body);
     if (code != 200) {
         Serial.printf("Sensor report failed: HTTP %d\n", code);
@@ -177,13 +177,14 @@ void reportSensors() {
 void setup() {
     Serial.begin(115200);
 
-    // Load unit ID from NVS
+    // Load unit ID and API key from NVS
     prefs.begin("unit", true);
     unitId = prefs.getUChar("id", 0);
+    apiKey = prefs.getString("api_key", "");
     prefs.end();
 
-    if (unitId == 0) {
-        Serial.println("ERROR: Unit ID not set. Run provisioning.");
+    if (unitId == 0 || apiKey.isEmpty()) {
+        Serial.println("ERROR: Unit ID or API key not set. Run provisioning.");
         // Blink fast to indicate error
         pinMode(LED_BUILTIN_PIN, OUTPUT);
         while (true) {

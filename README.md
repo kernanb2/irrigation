@@ -19,9 +19,12 @@ Solar-powered, WiFi-connected irrigation system built on ESP-32. Controls 15 zon
 │   ├── architecture.md           System design overview
 │   ├── wiring.md                 Wiring guide and electrical notes
 │   ├── pin-mapping.md            ESP-32 GPIO assignments
-│   └── moisture-sensor-recommendation.md
+│   ├── moisture-sensor-recommendation.md
+│   ├── filter-flush-unit.md      Pre-filter flush valve (ESP32 #2)
+│   └── arduino-ide-update.md     Updating the IDE, ESP32 core, libraries
 ├── firmware/
 │   ├── irrigation_controller/    Main ESP-32 sketch
+│   ├── filter_flush/             Pre-filter flush valve sketch
 │   └── README.md                 Library setup and provisioning
 ├── backend/
 │   └── db/schema.sql             MySQL database schema

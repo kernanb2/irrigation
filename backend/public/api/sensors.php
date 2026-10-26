@@ -10,7 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
      echo json_encode(['error' => 'Method not allowed']); exit;
 }
 
-if (!Auth::checkApiKey()) {
+$device = Auth::apiDevice();
+if (!$device) {
      echo json_encode(['error' => 'Unauthorized']); exit;
 }
 
@@ -19,6 +20,11 @@ $unitId = (int)($body['unit_id'] ?? 0);
 
 if ($unitId < 1 || $unitId > 3) {
      echo json_encode(['error' => 'Invalid unit_id']); exit;
+}
+
+// Each key may only report for its own unit
+if ($device['unit_id'] !== $unitId) {
+     echo json_encode(['error' => 'Key not valid for this unit']); exit;
 }
 
 $db = Database::get();

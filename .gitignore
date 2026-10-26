@@ -3,3 +3,5 @@ node_modules/
 *.local
 .DS_Store
 backend/.env
+backend/config/device_keys.php
+firmware/*/secrets.h

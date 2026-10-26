@@ -16,8 +16,14 @@ Then uncomment and run the `CREATE USER` lines at the bottom of schema.sql.
 ### 3. Configure the app
 Edit `/var/www/irrigation/backend/config/config.php`:
 - Set `DB_PASS` to the MySQL user password
-- Set `ESP32_API_KEY` to a long random string (used by ESP-32 units to post sensor data)
 - Set `TIMEZONE` to your local timezone
+
+Then create the per-device API keys (git-ignored):
+```bash
+cp backend/config/device_keys.example.php backend/config/device_keys.php
+openssl rand -hex 32   # run once per device, paste into device_keys.php
+```
+Each ESP-32 sends its own key. A key only works for the unit it's assigned to.
 
 ### 4. Create your login
 ```bash
@@ -58,7 +64,8 @@ Add:
 ```
 backend/
 ├── apache/irrigation.conf    Apache vhost config
-├── config/config.php         Credentials and settings (not committed with real values)
+├── config/config.php         Credentials and settings
+├── config/device_keys.php    Per-ESP32 API keys (git-ignored; see device_keys.example.php)
 ├── cron/check_schedules.php  Schedule + auto-close processor (run every minute)
 ├── db/
 │   ├── schema.sql            Full database schema

@@ -66,12 +66,18 @@ class Auth {
         return $_SESSION['username'] ?? null;
     }
 
-    // Validate ESP-32 API key from Authorization: Bearer <key> header
-    public static function checkApiKey(): bool {
+    // Identify the ESP-32 device from its Authorization: Bearer <key> header.
+    // Returns ['name' => ..., 'unit_id' => ...] or null if the key is unknown.
+    public static function apiDevice(): ?array {
         $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-        if (preg_match('/^Bearer\s+(.+)$/i', $header, $m)) {
-            return hash_equals(ESP32_API_KEY, $m[1]);
+        if (!preg_match('/^Bearer\s+(.+)$/i', $header, $m) || !is_readable(DEVICE_KEYS_FILE)) {
+            return null;
         }
-        return false;
+        foreach (require DEVICE_KEYS_FILE as $name => $device) {
+            if (hash_equals($device['key'], $m[1])) {
+                return ['name' => $name, 'unit_id' => $device['unit_id']];
+            }
+        }
+        return null;
     }
 }
