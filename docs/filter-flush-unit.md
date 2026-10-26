@@ -19,33 +19,30 @@ A second ESP32 that opens and closes a motorized ball valve to flush (clean) one
 
 ## How the Valve Is Driven
 
-A 3-wire valve has one **common** wire and two control wires: put +12V on **OPEN** and the valve drives open, or on **CLOSE** and it drives closed. The internal limit switch cuts the motor at the end of travel.
+Wire functions, confirmed by bench test on 2026-10-26:
 
-Relay 1's changeover contact chooses which control wire gets +12V:
+| Wire | Function | Connects to |
+|------|----------|-------------|
+| **Blue**   | Common (−) | Common GND |
+| **Red**    | Constant +12V (motor power) | 12V via F2, always on |
+| **Yellow** | Open signal | Relay 1 **NO** |
 
-| Relay 1 | +12V goes to | Valve |
-|---------|--------------|-------|
-| Off (NC) | CLOSE wire | Drives / stays **closed** |
-| On (NO)  | OPEN wire  | Drives / stays **open** |
+| Red | Yellow | Valve |
+|-----|--------|-------|
+| +12V | +12V | Drives / stays **open** |
+| +12V | off  | Drives / stays **closed** |
+
+The internal limit switches stop the motor at the end of travel. Relay 1 just switches +12V onto the yellow wire:
+
+| Relay 1 | Yellow | Valve |
+|---------|--------|-------|
+| Off | off  | **Closed** |
+| On  | +12V | **Open** |
 
 Why it's wired this way:
-- **Fails closed.** If the ESP32 crashes, reboots, loses WiFi, or is unplugged, the relay drops out and the valve closes. A flush valve stuck open would dump water.
-- **OPEN and CLOSE can never be powered at the same time.** A changeover contact can only be in one position.
+- **Fails closed when the controller fails.** If the ESP32 crashes, reboots, loses WiFi, or is unplugged, the relay drops out, yellow loses power, and the valve closes. A flush valve stuck open would dump water.
+- **Caveat:** red needs power to drive the valve closed. If the **12V supply itself** dies, the valve stays wherever it was.
 - Only one GPIO is needed. **Relay 2 is a spare** (for example, for a second filter later).
-
----
-
-## Identify the Valve Wires First (Bench Test)
-
-Wire colors differ between U.S. Solid production runs, and published diagrams don't agree. **Check the label on the actuator first**, then confirm with this test:
-
-1. Set the valve's manual override knob to the middle so you can see which way it moves (or watch the position indicator).
-2. Connect the suspected **common** wire to the 12V supply **−**.
-3. Briefly touch **+12V** to one of the other two wires. Watch which way the valve turns and wait for it to stop on its own (about 5–8 s).
-4. Touch +12V to the remaining wire. It should turn the other way.
-5. Label the wires **COM / OPEN / CLOSE** with tape.
-
-If nothing moves on either wire, you guessed the wrong common. Try another wire as common.
 
 ---
 
@@ -57,9 +54,9 @@ If nothing moves on either wire, you guessed the wrong common. Try another wire 
 12V 3A supply (+) ── FUSE F1 (2A) ──┬── 12V rail
                                     │
 12V rail ───────────────────────────┼── LM2596 IN+   → OUT+ = 5.0V (5V rail)
-12V rail ── FUSE F2 (1A) ───────────┴── Relay 1 COM  (valve power)
+12V rail ── FUSE F2 (1A) ───────────┴── Valve RED + Relay 1 COM  (valve power)
 
-12V supply (−) ── Common GND rail ── LM2596 IN− / OUT−, ESP32 GND, relay GND, valve COM
+12V supply (−) ── Common GND rail ── LM2596 IN− / OUT−, ESP32 GND, relay GND, valve BLUE
 ```
 
 > **Set the LM2596 to 5.0V with a multimeter BEFORE connecting the ESP32.**
@@ -84,10 +81,11 @@ If your module has **no JD-VCC jumper**, run VCC from 5V and test it. Check that
 ### Relay 1 Contacts → Valve
 
 ```
-12V rail ── F2 (1A) ── Relay 1 COM
-                       Relay 1 NC ──── Valve CLOSE wire
-                       Relay 1 NO ──── Valve OPEN wire
-Common GND ─────────────────────────── Valve COM wire
+12V rail ── F2 (1A) ──┬──────────────── Valve RED    (constant power)
+                      └── Relay 1 COM
+                          Relay 1 NO ── Valve YELLOW (open signal)
+                          Relay 1 NC ── (not connected)
+Common GND ──────────────────────────── Valve BLUE   (common)
 ```
 
 ### ESP32 Power
@@ -104,7 +102,7 @@ GND rail → ESP32 GND
 | Fuse | Location | Rating | Reason |
 |------|----------|--------|--------|
 | F1 | Right after the 12V supply (+) | **2A** | Protects wiring. Total normal load is well under 1A. |
-| F2 | 12V feed to Relay 1 COM | **1A** | The valve motor draws roughly 0.2–0.5A at 12V (max ~5W). A jammed motor or shorted lead blows this fuse instead of overheating anything. |
+| F2 | 12V feed to valve red + Relay 1 COM | **1A** | The valve motor draws roughly 0.2–0.5A at 12V (max ~5W). A jammed motor or shorted lead blows this fuse instead of overheating anything. |
 
 The relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together draw about 0.2A from the 12V side through the LM2596, which is covered by F1.
 
@@ -147,10 +145,10 @@ The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps any 
 
 ## Bring-Up Checklist
 
-1. Identify the valve wires (bench test above).
+1. ~~Identify the valve wires~~ Done: blue = common, red = power, yellow = open.
 2. Set the LM2596 to 5.0V with no load.
 3. Wire power, fuses, relay module, and valve. Leave the ESP32 unplugged.
-4. Power on. The valve should drive **closed** (relay off → NC → CLOSE).
+4. Power on. The valve should drive **closed** (relay off → yellow unpowered).
 5. Flash the ESP32 over USB (LM2596 VIN disconnected). Open Serial Monitor at 115200 baud and note the IP address.
 6. Disconnect USB, reconnect the LM2596 5V, and power up.
 7. `curl -X POST "http://<ip>/flush?seconds=15"`. The relay clicks, the valve opens, and about 15 s later it closes.

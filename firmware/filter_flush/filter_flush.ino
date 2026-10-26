@@ -13,7 +13,7 @@ const char* API_KEY       = SECRET_API_KEY;
 
 // ── Hardware pin assignments ──────────────────────────────────────────────────
 #define LED_BUILTIN_PIN   2
-#define RELAY_VALVE_PIN   26   // Relay 1: NC → valve CLOSE, NO → valve OPEN
+#define RELAY_VALVE_PIN   26   // Relay 1: NO → valve yellow (open signal)
 #define RELAY_SPARE_PIN   27   // Relay 2: unused
 
 // Relay module inputs are active LOW
@@ -32,8 +32,8 @@ unsigned long   flushEndMs    = 0;
 unsigned long   lastFlushMs   = 0;    // 0 = no flush since boot
 
 // ── Valve control ─────────────────────────────────────────────────────────────
-// The valve has internal limit switches, so the relay just selects which
-// control wire gets +12V. Relay off = closed, which is the fail-safe state.
+// Valve red has constant +12V; the relay switches +12V onto yellow to open.
+// Relay off = closed, which is the fail-safe state.
 void setValve(bool open) {
     digitalWrite(RELAY_VALVE_PIN, open ? RELAY_ON : RELAY_OFF);
     valveOpen = open;
