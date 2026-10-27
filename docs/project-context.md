@@ -170,7 +170,7 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 - **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) COM ← 12V via F2 1A (also feeds red), NO → yellow, NC unused. Fails closed on controller failure. Relay 2 (GPIO 27) spare.
 - **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs the automatic flush cycle itself (settings saved in NVS) and reports to `/api/filter_report.php` every 10 s; the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
 - **Web page:** Unit E card "Pondwater Pre-filter": Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min
-- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. Not yet connected to the central server.
+- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly.
 
 ## Known Issues / Architecture Notes
 
