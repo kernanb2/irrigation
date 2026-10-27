@@ -17,7 +17,7 @@ CREATE TABLE users (
 
 -- ── ESP-32 controller units ───────────────────────────────────────────────────
 CREATE TABLE units (
-    id          TINYINT UNSIGNED PRIMARY KEY,  -- 1=A, 2=B, 3=C
+    id          TINYINT UNSIGNED PRIMARY KEY,  -- 1=A, 2=B, 3=C, 4=D, 5=E
     name        VARCHAR(32) NOT NULL,
     ip_address  VARCHAR(15),
     last_seen   TIMESTAMP,
@@ -25,7 +25,8 @@ CREATE TABLE units (
     UNIQUE KEY uq_name (name)
 );
 
-INSERT INTO units (id, name) VALUES (1, 'Unit-A'), (2, 'Unit-B'), (3, 'Unit-C');
+INSERT INTO units (id, name) VALUES (1, 'Unit-A'), (2, 'Unit-B'), (3, 'Unit-C'),
+                                (4, 'Unit-D'), (5, 'Unit-E');  -- D = placeholder, E = pre-filter flush
 
 -- ── Irrigation zones ──────────────────────────────────────────────────────────
 CREATE TABLE zones (
@@ -144,7 +145,10 @@ INSERT INTO settings (key_name, value) VALUES
 ('temp_trigger_threshold_c',  '35'),
 ('sensor_poll_interval_sec',  '60'),
 ('max_zone_duration_sec',     '3600'),
-('creek_pond_interlock',      'true');
+('creek_pond_interlock',      'true'),
+('filter_cycle_enabled',      'false'),  -- Unit E pre-filter flush cycle
+('filter_flush_sec',          '30'),
+('filter_wait_min',           '60');
 
 -- ── Create application DB user (run as root) ──────────────────────────────────
 -- CREATE USER 'irrigation_user'@'localhost' IDENTIFIED BY 'CHANGE_THIS_PASSWORD';

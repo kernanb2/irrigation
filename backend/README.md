@@ -13,6 +13,11 @@ mysql -u root -p < /var/www/irrigation/backend/db/schema.sql
 ```
 Then uncomment and run the `CREATE USER` lines at the bottom of schema.sql.
 
+For an existing database, apply migrations in `backend/db/migrations/` in date order, e.g.:
+```bash
+mysql -u irrigation_user -p irrigation < /var/www/irrigation/backend/db/migrations/2026-10-26_units_d_e.sql
+```
+
 ### 3. Configure the app
 Edit `/var/www/irrigation/backend/config/config.php`:
 - Set `DB_PASS` to the MySQL user password
@@ -55,6 +60,8 @@ Add:
 | `/api/status.php`     | Session      | GET           | All zone states, moisture, temps |
 | `/api/valve.php`      | Session      | POST          | Open/close a valve               |
 | `/api/sensors.php`    | API Key      | POST          | ESP-32 sensor data ingestion     |
+| `/api/filter.php`     | Session      | GET/POST      | Unit E flush cycle: status / change settings |
+| `/api/filter_report.php` | API Key (Unit E) | POST     | Unit E reports status, gets cycle settings |
 | `/api/schedules.php`  | Session      | GET/POST/PATCH/DELETE | Manage schedules        |
 | `/api/events.php`     | Session      | GET           | Valve event history              |
 | `/api/settings.php`   | Session      | POST          | Update system settings           |
@@ -79,5 +86,6 @@ backend/
 └── src/
     ├── Auth.php              Session management
     ├── Database.php          PDO singleton
+    ├── FilterFlush.php       Unit E flush-cycle settings
     └── Unit.php              ESP-32 communication
 ```

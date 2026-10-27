@@ -46,6 +46,9 @@ Auth::require();
       <div class="loading">Loading zones…</div>
     </div>
 
+    <!-- Units D and E (rendered separately so polling doesn't reset an open dropdown) -->
+    <div id="extraUnits" class="zone-grid"></div>
+
     <!-- Schedules panel -->
     <section class="panel" id="schedulesPanel">
       <div class="panel-header">

@@ -3,7 +3,7 @@
 ## Required Arduino Libraries
 
 Install via Arduino IDE → Library Manager:
-- **ArduinoJson** by Benoit Blanchon (v6.x)
+- **ArduinoJson** by Benoit Blanchon (v7.x; the filter-flush sketch needs v7)
 - **OneWire** by Paul Stoffregen
 - **DallasTemperature** by Miles Burton
 

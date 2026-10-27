@@ -39,9 +39,7 @@ Stay on the **3.x** series. Don't go back to 2.x, and before jumping to a new ma
 
 1. **Tools → Manage Libraries…** and set the **Type** filter to **Updatable**.
 2. Update **OneWire** and **DallasTemperature** freely.
-3. **ArduinoJson:** the zone-controller sketch is written for v6 (`StaticJsonDocument`). Version 7 still compiles it but prints deprecation warnings. Updating is fine, but if you get compile errors, install the latest **6.x** from the version dropdown.
-
-The filter-flush sketch uses no external libraries.
+3. **ArduinoJson:** keep it on **7.x** (7.4.3 installed). The filter-flush sketch needs v7. The zone-controller sketch was written for v6 (`StaticJsonDocument`) but compiles on v7 with deprecation warnings.
 
 ## 4. Verify
 

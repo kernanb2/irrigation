@@ -118,6 +118,11 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | 7–10 | B    | 1–4         | Zones 7–10          |                                |
 | 11–15| C    | 0–4         | Zones 11–15         |                                |
 
+| Unit | ID | Purpose |
+|------|----|---------|
+| D | 4 | Placeholder on the dashboard, no hardware yet |
+| E | 5 | Pondwater pre-filter flush (filter flush board, 192.168.1.47) |
+
 **Interlock:** Creek Intake (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
 
 ---
@@ -156,18 +161,19 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 - **Bug found:** diode wired backwards — banded end (cathode) must face OUT1, currently reversed, clamping output to ~1.1V instead of 9V
 - **Next step:** reverse the 1N4007 diode, confirm solenoid clicks
 
-## Filter Flush Unit (ESP32 #2)
+## Filter Flush Unit — Unit E (ESP32 #2)
 
 Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details: `docs/filter-flush-unit.md`.
 
 - **Valve:** U.S. Solid USS-MSV00202, 1/2" SS motorized ball valve, 9–24V, 3-wire: blue = common (−), red = constant +12V, yellow = +12V to open / off to close. Internal limit switches
 - **Power:** 12V 3A supply → F1 2A → 12V rail; LM2596 → 5V (ESP32 VIN + relay JD-VCC)
 - **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) COM ← 12V via F2 1A (also feeds red), NO → yellow, NC unused. Fails closed on controller failure. Relay 2 (GPIO 27) spare.
-- **Firmware:** `firmware/filter_flush/filter_flush.ino` — `GET /status`, `POST /flush?seconds=N` (max 300), `POST /close`
-- **Status (2026-10-26):** fully wired and tested. ESP32 on LAN (DHCP), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. Not yet connected to the central server.
+- **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs the automatic flush cycle itself (settings saved in NVS) and reports to `/api/filter_report.php` every 10 s; the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
+- **Web page:** Unit E card "Pondwater Pre-filter": Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min
+- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. Not yet connected to the central server.
 
 ## Known Issues / Architecture Notes
 
-- **Server cannot reach ESP32 directly** — ESP32 is on private LAN (192.168.1.x), paradisepond.tech is on internet. Web UI valve commands fail with "could not reach unit". Fix planned: ESP32 polls server for pending commands instead of server pushing to ESP32.
+- **Server cannot reach ESP32 directly** — Apache runs on this Mac (same LAN as the ESP32s), but **macOS Local Network privacy blocks httpd** from connecting to LAN devices ("No route to host"; the router at 192.168.1.1 is exempt). Web UI valve commands fail with "could not reach unit". Unit E works around this by polling the server (`/api/filter_report.php`); the zone units should do the same. (Allowing httpd under System Settings → Privacy & Security → Local Network may also work, but polling keeps working if the server moves.)
 - **Do not connect LM2596 5V and USB simultaneously** — causes USB port to disappear from Mac. Disconnect LM2596 VIN wire before plugging in USB for flashing.
 - **temp_c = -127** means DS18B20 not connected — expected for now, no sensor wired yet.

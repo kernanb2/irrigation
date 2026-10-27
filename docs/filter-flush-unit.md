@@ -1,4 +1,4 @@
-# Filter Flush Unit (ESP32 #2)
+# Filter Flush Unit — Unit E (ESP32 #2)
 
 A second ESP32 that opens and closes a motorized ball valve to flush (clean) one of the pre-filters on the line feeding the irrigation storage tank. This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
@@ -144,26 +144,65 @@ GPIOs 26/27 are not strapping pins and don't glitch during boot. While the ESP32
 
 ---
 
+## Network
+
+| Setting | Value |
+|---------|-------|
+| IP address | **192.168.1.47** (DHCP reservation in the router at 192.168.1.1) |
+| MAC address | `e0:8c:fe:57:be:5c` |
+
+The sketch still uses DHCP. The router always hands this MAC the same address. If the ESP32 board is ever replaced, the new board has a different MAC, so update the reservation.
+
+---
+
 ## Firmware
 
-Sketch: `firmware/filter_flush/filter_flush.ino`. It needs no extra libraries.
+Sketch: `firmware/filter_flush/filter_flush.ino`. Needs the **ArduinoJson** library (v7), already installed for the zone sketch.
 
 WiFi settings and this board's API key go in `firmware/filter_flush/secrets.h` (git-ignored; copy from `secrets.example.h`). The key is the `filter-flush` entry in `backend/config/device_keys.php`.
 
+### Automatic Flush Cycle (Web Page)
+
+On the dashboard, **Unit E → Pondwater Pre-filter** has:
+- **Start / Stop flush cycle** button
+- **Flush period:** 10–120 seconds (steps of 10). How long the valve stays open.
+- **Wait time between flushes:** 10–120 minutes (steps of 10). How long it stays closed before the next flush.
+
+How the cycle behaves:
+- **Start:** flushes right away, then repeats: open for the flush period, wait, flush again.
+- **Stop:** closes the valve immediately (even mid-flush) and stops the cycle.
+- **Changing the wait time while running:** the next flush is rescheduled from the end of the last one. If that time has already passed, it flushes right away.
+- The **ESP32 runs the timer itself** and saves the settings in flash. The cycle keeps going if WiFi or the server goes down, and resumes after a reboot. After a reboot, the first flush comes one wait period later.
+
+### Talking to the Server
+
+Unit E **reports to the server every 10 s** (`POST /api/filter_report.php`, Bearer key). The server's reply contains the cycle settings chosen on the web page, and the board applies them. So a change on the web page reaches the board within about 10 s. Until then the card shows "Sending to Unit E…".
+
+The server can't push to the board (see "Server cannot reach ESP32 directly" in `project-context.md`), so the board has to poll. The page shows Unit E as **offline** if it hasn't reported in 30 s.
+
+| Server endpoint | Auth | Used by |
+|-----------------|------|---------|
+| `/api/filter_report.php` (POST) | `filter-flush` API key, only accepted for unit 5 | Unit E: sends status, gets settings |
+| `/api/filter.php` (GET / POST) | Login session | Web page: reads status, changes settings |
+
+Settings are stored in the `settings` table as `filter_cycle_enabled`, `filter_flush_sec` and `filter_wait_min`. The last report is stored as `filter_last_report`.
+
+### Local Endpoints (LAN only, for testing)
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/status` | GET | Valve state, seconds left in the current flush, seconds since last flush, uptime |
+| `/status` | GET | Valve state, flush time left, cycle settings, time to next flush, uptime |
 | `/flush?seconds=N` | POST | Open the valve for N seconds, then close it automatically (default 30, max 300) |
-| `/close` | POST | Close the valve immediately |
+| `/close` | POST | Close the valve immediately (the cycle continues; next flush is one wait period later) |
 
 Examples from a computer on the LAN:
 ```
-curl http://<esp32-ip>/status
-curl -X POST "http://<esp32-ip>/flush?seconds=20"
-curl -X POST http://<esp32-ip>/close
+curl http://192.168.1.47/status
+curl -X POST "http://192.168.1.47/flush?seconds=20"
+curl -X POST http://192.168.1.47/close
 ```
 
-The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps any request, so a bad command can't leave it open indefinitely.
+The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps manual requests, and the cycle only accepts 10–120 s, so a bad command can't leave it open indefinitely.
 
 ---
 
@@ -180,5 +219,5 @@ The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps any 
 
 ## Not Yet Done
 
-- Connecting to the central server at `paradisepond.tech`. The server can't reach LAN devices directly (see `project-context.md`). Like the zone units, this board should poll the server for commands.
-- Flushing on a schedule or when the filter's pressure drop gets too high (would need a pressure sensor).
+- Logging each flush to the event history on the dashboard.
+- Flushing when the filter's pressure drop gets too high (would need a pressure sensor).
