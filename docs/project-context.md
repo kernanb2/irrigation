@@ -164,7 +164,7 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 - **Power:** 12V 3A supply → F1 2A → 12V rail; LM2596 → 5V (ESP32 VIN + relay JD-VCC)
 - **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) COM ← 12V via F2 1A (also feeds red), NO → yellow, NC unused. Fails closed on controller failure. Relay 2 (GPIO 27) spare.
 - **Firmware:** `firmware/filter_flush/filter_flush.ino` — `GET /status`, `POST /flush?seconds=N` (max 300), `POST /close`
-- **Status (2026-10-26):** parts on hand, not yet wired. Valve wire functions confirmed by bench test.
+- **Status (2026-10-26):** fully wired and tested. ESP32 on LAN (DHCP), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. Not yet connected to the central server.
 
 ## Known Issues / Architecture Notes
 
