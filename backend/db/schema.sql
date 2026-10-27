@@ -59,7 +59,10 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (12, 3, 1, 'Zone 12',           FALSE, NULL),
 (13, 3, 2, 'Zone 13',           FALSE, NULL),
 (14, 3, 3, 'Zone 14',           FALSE, NULL),
-(15, 3, 4, 'Zone 15',           FALSE, NULL);
+(15, 3, 4, 'Zone 15',           FALSE, NULL),
+-- Unit E flush valves — logged in valve_events; outside 1–15 so not usable as irrigation zones
+(16, 5, 0, 'Pondwater Pre-filter',   FALSE, 'Flush valve, GPIO 26 — controlled by the flush cycle'),
+(17, 5, 1, 'Pondwater Pre-filter-2', FALSE, 'Flush valve, GPIO 27 — controlled by the flush cycle');
 
 -- ── Moisture sensor readings ──────────────────────────────────────────────────
 CREATE TABLE moisture_readings (
@@ -130,7 +133,7 @@ CREATE TABLE sensor_calibration (
 );
 
 INSERT INTO sensor_calibration (zone_id, dry_value, wet_value)
-SELECT id, 3300, 1300 FROM zones;
+SELECT id, 3300, 1300 FROM zones WHERE id <= 15;
 
 -- ── System settings ───────────────────────────────────────────────────────────
 CREATE TABLE settings (
@@ -146,9 +149,12 @@ INSERT INTO settings (key_name, value) VALUES
 ('sensor_poll_interval_sec',  '60'),
 ('max_zone_duration_sec',     '3600'),
 ('creek_pond_interlock',      'true'),
-('filter_cycle_enabled',      'false'),  -- Unit E pre-filter flush cycle
-('filter_flush_sec',          '30'),
-('filter_wait_min',           '60');
+('filter1_cycle_enabled',     'false'),  -- Unit E pre-filter flush cycles
+('filter1_flush_sec',         '30'),
+('filter1_wait_min',          '60'),
+('filter2_cycle_enabled',     'false'),
+('filter2_flush_sec',         '30'),
+('filter2_wait_min',          '60');
 
 -- ── Create application DB user (run as root) ──────────────────────────────────
 -- CREATE USER 'irrigation_user'@'localhost' IDENTIFIED BY 'CHANGE_THIS_PASSWORD';

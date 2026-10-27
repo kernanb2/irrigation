@@ -121,12 +121,12 @@ function renderExtraUnits() {
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
       <div class="zone-unit-header">Unit E — Pre-filter Flush</div>
-      ${filter ? filterCard() : ''}`;
+      ${(filter?.filters || []).map(filterCard).join('')}`;
 }
 
-function filterCard() {
-    const want    = filter.desired;
-    const got     = filter.reported;
+function filterCard(f) {
+    const want    = f.desired;
+    const got     = f.reported;
     const isOpen  = filter.online && got?.valve === 'open';
     const pending = filter.online && got && (got.cycle_enabled !== want.cycle_enabled
                     || got.flush_sec !== want.flush_sec || got.wait_min !== want.wait_min);
@@ -134,6 +134,8 @@ function filterCard() {
     let detail;
     if (!filter.online) {
         detail = 'Unit E offline' + (filter.last_seen ? ` — last seen ${new Date(filter.last_seen).toLocaleString()}` : '');
+    } else if (!got) {
+        detail = 'Waiting for Unit E…';
     } else if (pending) {
         detail = 'Sending to Unit E…';
     } else if (isOpen) {
@@ -148,10 +150,10 @@ function filterCard() {
         .map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v} ${unit}</option>`).join('');
 
     return `
-    <div class="zone-card ${isOpen ? 'valve-open' : ''}" id="filterCard">
+    <div class="zone-card ${isOpen ? 'valve-open' : ''}" id="filter-${f.filter}">
       <div class="zone-header">
         <div>
-          <div class="zone-name">Pondwater Pre-filter</div>
+          <div class="zone-name">${escHtml(f.name)}</div>
           <div class="zone-id">Automatic flush cycle</div>
         </div>
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : 'Closed'}</span>
@@ -159,31 +161,31 @@ function filterCard() {
       <div class="zone-sensors">${detail}</div>
       <div class="zone-actions">
         <button class="${want.cycle_enabled ? 'btn-close' : 'btn-open'}"
-          onclick="setFilterCycle({ cycle_enabled: ${!want.cycle_enabled} })">
+          onclick="setFilterCycle(${f.filter}, { cycle_enabled: ${!want.cycle_enabled} })">
           ${want.cycle_enabled ? 'Stop flush cycle' : 'Start flush cycle'}
         </button>
       </div>
       <label class="card-field">Flush period
-        <select onchange="setFilterCycle({ flush_sec: parseInt(this.value) })">${options('seconds', want.flush_sec)}</select>
+        <select onchange="setFilterCycle(${f.filter}, { flush_sec: parseInt(this.value) })">${options('seconds', want.flush_sec)}</select>
       </label>
       <label class="card-field">Wait time between flushes
-        <select onchange="setFilterCycle({ wait_min: parseInt(this.value) })">${options('minutes', want.wait_min)}</select>
+        <select onchange="setFilterCycle(${f.filter}, { wait_min: parseInt(this.value) })">${options('minutes', want.wait_min)}</select>
       </label>
     </div>`;
 }
 
-async function setFilterCycle(changes) {
+async function setFilterCycle(n, changes) {
     try {
         const res  = await apiFetch('/api/filter.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(changes),
+            body: JSON.stringify({ filter: n, ...changes }),
         });
         const data = await res.json();
         if (!data.success) alert('Error: ' + (data.error || 'Unknown error'));
         document.activeElement?.blur();
         fetchAll();
-        setTimeout(fetchAll, 11000);   // Unit E picks up changes within 10 s
+        setTimeout(fetchAll, 3000);    // Unit E picks up changes within 2 s
     } catch (e) {
         if (e.message !== 'session_expired') alert('Network error — could not reach server.');
     }
@@ -240,7 +242,8 @@ function renderSchedules() {
 
 function openScheduleModal() {
     const sel = document.getElementById('schedZone');
-    sel.innerHTML = zones.map(z => `<option value="${z.id}">Zone ${z.id} — ${escHtml(z.name)}</option>`).join('');
+    // Irrigation zones only — Unit E flush valves run on their own cycle
+    sel.innerHTML = zones.filter(z => z.id <= 15).map(z => `<option value="${z.id}">Zone ${z.id} — ${escHtml(z.name)}</option>`).join('');
     document.getElementById('scheduleModal').classList.remove('hidden');
 }
 
@@ -299,9 +302,9 @@ function renderEvents(events) {
     tbody.innerHTML = events.slice(0, 50).map(ev => `
         <tr>
           <td>${new Date(ev.executed_at).toLocaleString()}</td>
-          <td>Zone ${ev.zone_id} — ${escHtml(ev.zone_name)}</td>
+          <td>${ev.zone_id > 15 ? '' : `Zone ${ev.zone_id} — `}${escHtml(ev.zone_name)}</td>
           <td><span style="color:${ev.action==='open'?'var(--green)':'var(--muted)'}">${ev.action.toUpperCase()}</span></td>
-          <td>${ev.trigger_type}</td>
+          <td>${escHtml(ev.notes || ev.trigger_type)}</td>
           <td>${escHtml(ev.initiated_by || '—')}</td>
         </tr>`).join('');
 }

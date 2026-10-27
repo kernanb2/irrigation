@@ -29,7 +29,8 @@ if ($method === 'POST') {
     $skipMoist   = (bool)($body['skip_if_moist'] ?? true);
     $skipThresh  = (int)($body['skip_threshold'] ?? 60);
 
-    if ($zoneId < 1 || !$cron || $duration < 1 || $duration > MAX_ZONE_DURATION_SEC) {
+    // Irrigation zones only — 16+ are Unit E flush valves, run by their own cycle
+    if ($zoneId < 1 || $zoneId > 15 || !$cron || $duration < 1 || $duration > MAX_ZONE_DURATION_SEC) {
         
         echo json_encode(['error' => 'Invalid schedule parameters']);
         exit;

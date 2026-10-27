@@ -10,7 +10,7 @@ Auth::require();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= APP_NAME ?></title>
-  <link rel="stylesheet" href="<?= BASE_PATH ?>/css/style.css">
+  <link rel="stylesheet" href="<?= BASE_PATH ?>/css/style.css?v=<?= filemtime(__DIR__ . '/css/style.css') ?>">
 </head>
 <body>
   <header>
@@ -112,6 +112,6 @@ Auth::require();
   </div>
 
   <script>const BASE = '<?= BASE_PATH ?>';</script>
-  <script src="<?= BASE_PATH ?>/js/app.js"></script>
+  <script src="<?= BASE_PATH ?>/js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
 </body>
 </html>

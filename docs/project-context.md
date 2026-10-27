@@ -121,7 +121,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | Unit | ID | Purpose |
 |------|----|---------|
 | D | 4 | Placeholder on the dashboard, no hardware yet |
-| E | 5 | Pondwater pre-filter flush (filter flush board, 192.168.1.47) |
+| E | 5 | Pondwater pre-filter flush, 2 valves (filter flush board, 192.168.1.47). Zones rows 16/17 exist only for event logging |
 
 **Interlock:** Creek Intake (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
 
@@ -167,13 +167,21 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 
 - **Valve:** U.S. Solid USS-MSV00202, 1/2" SS motorized ball valve, 9–24V, 3-wire: blue = common (−), red = constant +12V, yellow = +12V to open / off to close. Internal limit switches
 - **Power:** 12V 3A supply → F1 2A → 12V rail; LM2596 → 5V (ESP32 VIN + relay JD-VCC)
-- **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) COM ← 12V via F2 1A (also feeds red), NO → yellow, NC unused. Fails closed on controller failure. Relay 2 (GPIO 27) spare.
-- **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs the automatic flush cycle itself (settings saved in NVS) and reports to `/api/filter_report.php` every 10 s; the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
-- **Web page:** Unit E card "Pondwater Pre-filter": Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min
-- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly.
+- **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) → filter 1 valve, relay 2 (GPIO 27) → filter 2 valve. Each: COM ← 12V via its own 1A fuse (F2 / F3, also feeds red), NO → yellow, NC unused. Fails closed on controller failure.
+- **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs both automatic flush cycles itself (settings saved in NVS), queues valve events for the event log, and reports to `/api/filter_report.php` every 2 s (via paradisepond.tech); the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
+- **Web page:** Unit E cards "Pondwater Pre-filter" and "Pondwater Pre-filter-2", each with Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min. Every open/close appears in Recent Valve Events.
+- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly. Second valve (Pondwater Pre-filter-2, GPIO 27) wired and working; event log, 2 s check-ins, and valve opening-time allowance confirmed. Power-up test passed: both valves stay closed when the whole system is powered on.
 
 ## Known Issues / Architecture Notes
 
 - **Server cannot reach ESP32 directly** — Apache runs on this Mac (same LAN as the ESP32s), but **macOS Local Network privacy blocks httpd** from connecting to LAN devices ("No route to host"; the router at 192.168.1.1 is exempt). Web UI valve commands fail with "could not reach unit". Unit E works around this by polling the server (`/api/filter_report.php`); the zone units should do the same. (Allowing httpd under System Settings → Privacy & Security → Local Network may also work, but polling keeps working if the server moves.)
+- **Apache access log skips ESP32 check-ins** — `/usr/local/etc/httpd/httpd.conf` (outside this repo), in the `<VirtualHost *:80>` block:
+  ```
+  SetEnvIf Request_URI "^/irrigation/api/filter_report\.php$" esp32_checkin
+  CustomLog "/usr/local/var/log/httpd/access_log_80" common env=!esp32_checkin
+  ```
+  Check-ins every 2 s would otherwise add ~4 MB/day per board. Valve events are in the DB, not this log. Add new check-in endpoints (e.g. for Units A–C) to the `SetEnvIf` pattern.
+- **macOS firewall blocks LAN connections to Apache** — `http://192.168.1.128/irrigation` from another device gets an empty reply, so boards use `paradisepond.tech` (needs internet). Allowing httpd in System Settings → Network → Firewall → Options would let boards use the LAN address.
+- **ESP32 core 3.x: `digitalWrite` before `pinMode` is ignored** — the pin then defaults LOW. With active-LOW relays that turned the relays on at power-up. Always call `pinMode(OUTPUT)` first, then `digitalWrite`.
 - **Do not connect LM2596 5V and USB simultaneously** — causes USB port to disappear from Mac. Disconnect LM2596 VIN wire before plugging in USB for flashing.
 - **temp_c = -127** means DS18B20 not connected — expected for now, no sensor wired yet.

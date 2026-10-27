@@ -60,8 +60,8 @@ Add:
 | `/api/status.php`     | Session      | GET           | All zone states, moisture, temps |
 | `/api/valve.php`      | Session      | POST          | Open/close a valve               |
 | `/api/sensors.php`    | API Key      | POST          | ESP-32 sensor data ingestion     |
-| `/api/filter.php`     | Session      | GET/POST      | Unit E flush cycle: status / change settings |
-| `/api/filter_report.php` | API Key (Unit E) | POST     | Unit E reports status, gets cycle settings |
+| `/api/filter.php`     | Session      | GET/POST      | Unit E flush cycles: status / change settings |
+| `/api/filter_report.php` | API Key (Unit E) | POST     | Unit E reports status and valve events, gets cycle settings |
 | `/api/schedules.php`  | Session      | GET/POST/PATCH/DELETE | Manage schedules        |
 | `/api/events.php`     | Session      | GET           | Valve event history              |
 | `/api/settings.php`   | Session      | POST          | Update system settings           |
@@ -86,6 +86,6 @@ backend/
 └── src/
     ├── Auth.php              Session management
     ├── Database.php          PDO singleton
-    ├── FilterFlush.php       Unit E flush-cycle settings
+    ├── FilterFlush.php       Unit E flush-cycle settings and event logging
     └── Unit.php              ESP-32 communication
 ```

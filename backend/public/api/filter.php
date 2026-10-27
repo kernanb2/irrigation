@@ -1,5 +1,5 @@
 <?php
-// Web UI — read or change the Unit E pre-filter flush cycle
+// Web UI — read or change the Unit E pre-filter flush cycles
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
@@ -12,8 +12,12 @@ $db = Database::get();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body    = json_decode(file_get_contents('php://input'), true) ?? [];
+    $filter  = $body['filter'] ?? null;
     $changes = [];
 
+    if (!FilterFlush::validFilter($filter)) {
+        echo json_encode(['error' => 'Invalid filter']); exit;
+    }
     if (array_key_exists('cycle_enabled', $body)) {
         $changes['cycle_enabled'] = (bool)$body['cycle_enabled'];
     }
@@ -28,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => 'Nothing to change']); exit;
     }
 
-    FilterFlush::setDesired($changes);
-    echo json_encode(['success' => true, 'desired' => FilterFlush::desired()]);
+    FilterFlush::setDesired($filter, $changes);
+    echo json_encode(['success' => true]);
     exit;
 }
 
@@ -40,11 +44,25 @@ $unit = $db->prepare("
 $unit->execute([FilterFlush::UNIT_ID]);
 $u = $unit->fetch();
 
-$report = $db->query("SELECT value FROM settings WHERE key_name = 'filter_last_report'")->fetchColumn();
+$names = $db->query("
+    SELECT id, name FROM zones WHERE id IN (" . implode(',', FilterFlush::ZONE_IDS) . ")
+")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+$report   = $db->query("SELECT value FROM settings WHERE key_name = 'filter_last_report'")->fetchColumn();
+$reported = $report ? (json_decode($report, true)['filters'] ?? []) : [];
+
+$filters = [];
+foreach (FilterFlush::desiredAll() as $n => $desired) {
+    $filters[] = [
+        'filter'   => $n,
+        'name'     => $names[FilterFlush::ZONE_IDS[$n]] ?? "Filter $n",
+        'desired'  => $desired,
+        'reported' => $reported[$n - 1] ?? null,
+    ];
+}
 
 echo json_encode([
-    'desired'   => FilterFlush::desired(),
-    'reported'  => $report ? json_decode($report, true) : null,
+    'filters'   => $filters,
     'online'    => $u && $u['seen_ago'] !== null && (int)$u['seen_ago'] < FilterFlush::ONLINE_SEC,
     'last_seen' => $u['last_seen'] ?? null,
 ]);
