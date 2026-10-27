@@ -80,13 +80,37 @@ If your module has **no JD-VCC jumper**, run VCC from 5V and test it. Check that
 
 ### Relay 1 Contacts → Valve
 
+Relay 1 has three screw terminals. On this module, confirmed with a continuity meter on 2026-10-26:
+
+| Terminal | Name | Relay off (idle) | Relay on (flushing) |
+|----------|------|------------------|---------------------|
+| 1 | **NO** (normally open)   | Open        | Connected to 2 |
+| 2 | **COM** (common, middle) | —           | —              |
+| 3 | **NC** (normally closed) | Connected to 2 | Open        |
+
+To check a different module: with the relay idle, the two terminals that show continuity are COM and NC. Then start a flush; the terminal that now connects to COM is NO.
+
+Hook-up (unplug the 12V supply while you wire):
+
+| From | To |
+|------|----|
+| +12V, **after the 1A fuse (F2)** | Relay terminal **2** (COM) |
+| +12V, **after the 1A fuse (F2)** | Valve **red** |
+| Relay terminal **1** (NO) | Valve **yellow** |
+| Relay terminal **3** (NC) | Nothing; leave it empty |
+| 12V supply **−** (common ground) | Valve **blue** |
+
 ```
-12V rail ── F2 (1A) ──┬──────────────── Valve RED    (constant power)
-                      └── Relay 1 COM
-                          Relay 1 NO ── Valve YELLOW (open signal)
-                          Relay 1 NC ── (not connected)
-Common GND ──────────────────────────── Valve BLUE   (common)
++12V ── F2 (1A) ──┬──────────────── RED     (constant power)
+                  └── Relay 2 (COM)
+                      Relay 1 (NO) ── YELLOW (open signal)
+                      Relay 3 (NC) ── (empty)
+GND ─────────────────────────────── BLUE    (common)
 ```
+
+Red and relay COM both connect to the output side of the 1A fuse. Run one wire out of the fuse to a terminal or a small splice, then branch to both.
+
+If the valve moves the wrong way, unplug power and check the yellow wire. It must go to terminal 1, the one that's connected only during a flush.
 
 ### ESP32 Power
 
