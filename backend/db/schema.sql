@@ -62,7 +62,8 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (15, 3, 4, 'Zone 15',           FALSE, NULL),
 -- Unit E flush valves — logged in valve_events; outside 1–15 so not usable as irrigation zones
 (16, 5, 0, 'Pondwater Pre-filter',   FALSE, 'Flush valve, GPIO 26 — controlled by the flush cycle'),
-(17, 5, 1, 'Pondwater Pre-filter-2', FALSE, 'Flush valve, GPIO 27 — controlled by the flush cycle');
+(17, 5, 1, 'Pondwater Pre-filter-2', FALSE, 'Flush valve, GPIO 27 — controlled by the flush cycle'),
+(18, 5, 2, 'Pond Drain',             FALSE, '2" drain valve, relays 3+4 (GPIO 25/33) — supports partial open');
 
 -- ── Moisture sensor readings ──────────────────────────────────────────────────
 CREATE TABLE moisture_readings (
@@ -154,7 +155,9 @@ INSERT INTO settings (key_name, value) VALUES
 ('filter1_wait_min',          '60'),
 ('filter2_cycle_enabled',     'false'),
 ('filter2_flush_sec',         '30'),
-('filter2_wait_min',          '60');
+('filter2_wait_min',          '60'),
+('drain_target_pct',          '0'),    -- Unit E Pond Drain: 0 = closed, 100 = fully open
+('drain_cmd_seq',             '0');
 
 -- ── Create application DB user (run as root) ──────────────────────────────────
 -- CREATE USER 'irrigation_user'@'localhost' IDENTIFIED BY 'CHANGE_THIS_PASSWORD';

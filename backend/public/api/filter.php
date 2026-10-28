@@ -1,9 +1,10 @@
 <?php
-// Web UI — read or change the Unit E pre-filter flush cycles
+// Web UI — read Unit E status (flush cycles + Pond Drain) or change the flush cycles
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/FilterFlush.php';
+require_once __DIR__ . '/../../src/PondDrain.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -48,8 +49,9 @@ $names = $db->query("
     SELECT id, name FROM zones WHERE id IN (" . implode(',', FilterFlush::ZONE_IDS) . ")
 ")->fetchAll(PDO::FETCH_KEY_PAIR);
 
-$report   = $db->query("SELECT value FROM settings WHERE key_name = 'filter_last_report'")->fetchColumn();
-$reported = $report ? (json_decode($report, true)['filters'] ?? []) : [];
+$report      = $db->query("SELECT value FROM settings WHERE key_name = 'filter_last_report'")->fetchColumn();
+$reportData  = $report ? json_decode($report, true) : [];
+$reported    = $reportData['filters'] ?? [];
 
 $filters = [];
 foreach (FilterFlush::desiredAll() as $n => $desired) {
@@ -63,6 +65,7 @@ foreach (FilterFlush::desiredAll() as $n => $desired) {
 
 echo json_encode([
     'filters'   => $filters,
+    'drain'     => ['desired' => PondDrain::desired(), 'reported' => $reportData['drain'] ?? null],
     'online'    => $u && $u['seen_ago'] !== null && (int)$u['seen_ago'] < FilterFlush::ONLINE_SEC,
     'last_seen' => $u['last_seen'] ?? null,
 ]);

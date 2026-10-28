@@ -121,7 +121,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | Unit | ID | Purpose |
 |------|----|---------|
 | D | 4 | Placeholder on the dashboard, no hardware yet |
-| E | 5 | Pondwater pre-filter flush, 2 valves (filter flush board, 192.168.1.47). Zones rows 16/17 exist only for event logging |
+| E | 5 | Pondwater pre-filter flush (2 valves) + Pond Drain (filter flush board, 192.168.1.47). Zones rows 16/17/18 exist only for event logging |
 
 **Interlock:** Creek Intake (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
 
@@ -161,7 +161,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 - **Bug found:** diode wired backwards — banded end (cathode) must face OUT1, currently reversed, clamping output to ~1.1V instead of 9V
 - **Next step:** reverse the 1N4007 diode, confirm solenoid clicks
 
-## Filter Flush Unit — Unit E (ESP32 #2)
+## Unit E — Pre-filter Flush + Pond Drain (ESP32 #2)
 
 Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details: `docs/filter-flush-unit.md`.
 
@@ -170,7 +170,8 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 - **Relay:** Songle SRD-05VDC-SL-C 2-ch module, active LOW. Relay 1 (GPIO 26) → filter 1 valve, relay 2 (GPIO 27) → filter 2 valve. Each: COM ← 12V via its own 1A fuse (F2 / F3, also feeds red), NO → yellow, NC unused. Fails closed on controller failure.
 - **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs both automatic flush cycles itself (settings saved in NVS), queues valve events for the event log, and reports to `/api/filter_report.php` every 2 s (via paradisepond.tech); the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
 - **Web page:** Unit E cards "Pondwater Pre-filter" and "Pondwater Pre-filter-2", each with Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min. Every open/close appears in Recent Valve Events.
-- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly. Second valve (Pondwater Pre-filter-2, GPIO 27) wired and working; event log, 2 s check-ins, and valve opening-time allowance confirmed. Power-up test passed: both valves stay closed when the whole system is powered on.
+- **Pond Drain:** BOKYWOX A150-T50-S2-CR2-01-DC12V (2", 2-wire reverse polarity, ≤1A, ≤11 s travel). Relays 3+4 on a second 2-relay module, GPIO 25 (red) / 33 (black), fuse F4 2A. Both relays off = close (fail-safe), both on = open, relay 3 only = hold. Partial open (10–90%) is timed from `DRAIN_TRAVEL_MS`. Closes after any restart; web commands use `drain_cmd_seq` so they're never replayed. Firmware never moves the drain while a filter valve moves (and vice versa) to stay inside the 3A supply. Main fuse F1 raised to 3A. Docs: `docs/filter-flush-unit.md`.
+- **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly. Second valve (Pondwater Pre-filter-2, GPIO 27) wired and working; event log, 2 s check-ins, and valve opening-time allowance confirmed. Power-up test passed: both valves stay closed when the whole system is powered on. Reflashed with Pond Drain support; firmware and drain card working. Drain hardware (second 2-relay module, F4 fuse, F1 → 3A) not yet wired — relay modules on order.
 
 ## Known Issues / Architecture Notes
 

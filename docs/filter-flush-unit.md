@@ -1,13 +1,14 @@
-# Filter Flush Unit — Unit E (ESP32 #2)
+# Unit E — Pre-filter Flush and Pond Drain (ESP32 #2)
 
-A second ESP32 that opens and closes two motorized ball valves to flush (clean) the pre-filters on the line feeding the irrigation storage tank:
+A second ESP32 that controls three motorized ball valves: two flush (clean) the pre-filters on the line feeding the irrigation storage tank, and one drains the pond.
 
-| Filter | Web page name | Relay | GPIO |
-|--------|---------------|-------|------|
-| 1 | Pondwater Pre-filter   | Relay 1 | 26 |
-| 2 | Pondwater Pre-filter-2 | Relay 2 | 27 |
+| # | Web page name | Valve | Relay | GPIO |
+|---|---------------|-------|-------|------|
+| 1 | Pondwater Pre-filter   | U.S. Solid ½" | Relay 1 | 26 |
+| 2 | Pondwater Pre-filter-2 | U.S. Solid ½" | Relay 2 | 27 |
+| 3 | Pond Drain             | BOKYWOX 2"    | Relays 3 + 4 | 25 + 33 |
 
-Each filter has its own independent flush cycle. This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
+Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
 ---
 
@@ -18,7 +19,8 @@ Each filter has its own independent flush cycle. This board is separate from the
 | ESP32 dev board | Arduino IDE board: **ESP32 Dev Module** |
 | U.S. Solid **USS-MSV00202** ×2 (one per filter) | 1/2" stainless (SS304) motorized ball valve, full port, 9–24V AC/DC, **3-wire**, manual override. The actuator has internal limit switches, so it stops on its own at fully open / fully closed and draws almost nothing once in position. Travel time is about 5–8 s. |
 | 12V 3A power supply | Powers everything |
-| 2-relay module, Songle **SRD-05VDC-SL-C** | 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
+| BOKYWOX **A150-T50-S2-CR2-01-DC12V** (Pond Drain) | Tonhe A150 actuator (15 N·m) on a 2" SS304 2-way ball valve. **2-wire reverse polarity** (CR2-01): red + / black − closes, black + / red − opens. Stops itself at each end; if power is lost it stays where it is. ≤1A at 12V while moving, ≤11 s full travel, manual override. [Datasheet](http://www.motorized-valve.com/pdf/A150-motorized-valve.pdf) |
+| 2-relay module, Songle **SRD-05VDC-SL-C** ×2 | Module 1: relays 1–2 (filters). Module 2: relays 3–4 (Pond Drain). 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
 | LM2596 buck converter (Amazon FNSKU X004ZQRESH) | 12V → 5V for the ESP32 and relay coils |
 | Blade fuses + inline holders | See fusing below |
 
@@ -58,13 +60,15 @@ Why it's wired this way:
 ### Power
 
 ```
-12V 3A supply (+) ── FUSE F1 (2A) ──┬── 12V rail
+12V 3A supply (+) ── FUSE F1 (3A) ──┬── 12V rail
                                     │
 12V rail ───────────────────────────┼── LM2596 IN+   → OUT+ = 5.0V (5V rail)
 12V rail ── FUSE F2 (1A) ───────────┼── Valve 1 RED + Relay 1 COM  (filter 1 valve power)
-12V rail ── FUSE F3 (1A) ───────────┴── Valve 2 RED + Relay 2 COM  (filter 2 valve power)
+12V rail ── FUSE F3 (1A) ───────────┼── Valve 2 RED + Relay 2 COM  (filter 2 valve power)
+12V rail ── FUSE F4 (2A) ───────────┴── Relay 3 NC + Relay 4 NO     (Pond Drain power)
 
-12V supply (−) ── Common GND rail ── LM2596 IN− / OUT−, ESP32 GND, relay GND, valve 1 + 2 BLUE
+12V supply (−) ── Common GND rail ── LM2596 IN− / OUT−, ESP32 GND, relay GNDs, valve 1 + 2 BLUE,
+                                     Relay 3 NO + Relay 4 NC
 ```
 
 > **Set the LM2596 to 5.0V with a multimeter BEFORE connecting the ESP32.**
@@ -140,6 +144,35 @@ Same as relay 1. Check relay 2's terminals with the meter the same way first: wi
 GND ─────────────────────────────── VALVE 2 BLUE    (common)
 ```
 
+### Relays 3 + 4 → Pond Drain (2-wire reverse polarity)
+
+The drain valve is reversed by swapping which of its two wires gets +12V, so it needs two relays. Each relay connects one valve wire to either +12V or GND, so **no relay state can short the supply**.
+
+Second relay module: set it up like the first. **Remove the JD-VCC jumper**, then JD-VCC → 5V rail, VCC → ESP32 3V3, GND → common GND, **IN1 → GPIO 25**, **IN2 → GPIO 33**. Check each relay's terminals with the meter first (idle: COM–NC have continuity). Usually 1 = NO, 2 = COM, 3 = NC.
+
+| Relay | COM (terminal 2) | NC (terminal 3) | NO (terminal 1) |
+|-------|------------------|-----------------|-----------------|
+| Relay 3 (GPIO 25) | Drain **red** | +12V after **F4** | GND |
+| Relay 4 (GPIO 33) | Drain **black** | GND | +12V after **F4** |
+
+```
+                 Relay 3                    Relay 4
++12V (F4) ──── NC ┐                  GND ── NC ┐
+                  COM ── RED                    COM ── BLACK
+GND ─────────── NO ┘           +12V (F4) ── NO ┘
+```
+
+| Relay 3 | Relay 4 | Red | Black | Drain |
+|---------|---------|-----|-------|-------|
+| off | off | +12V | GND  | **Closes** (power-up, crash and reboot state) |
+| on  | on  | GND  | +12V | **Opens** |
+| on  | off | GND  | GND  | **Holds** where it is (used for partial open) |
+| off | on  | +12V | +12V | Holds (not used) |
+
+**Bench test first:** with the valve on the bench, briefly put +12V on red and GND on black. The valve should close; swap them and it should open. If it's the other way round, swap red and black at the relays.
+
+Like the filter valves, the drain needs the 12V supply to close. If the 12V supply itself dies, the drain stays where it was.
+
 ### ESP32 Power
 
 ```
@@ -153,11 +186,22 @@ GND rail → ESP32 GND
 
 | Fuse | Location | Rating | Reason |
 |------|----------|--------|--------|
-| F1 | Right after the 12V supply (+) | **2A** | Protects wiring. Worst case (both valves moving at once plus electronics) is about 1.2A. |
+| F1 | Right after the 12V supply (+) | **3A** | Protects wiring and matches the 3A supply. Worst case is about 2.1A (all three valves moving, plus electronics); the firmware keeps it lower, see below. |
 | F2 | 12V feed to valve 1 red + Relay 1 COM | **1A** | The valve motor draws roughly 0.2–0.5A at 12V (max ~5W). A jammed motor or shorted lead blows this fuse instead of overheating anything. |
 | F3 | 12V feed to valve 2 red + Relay 2 COM | **1A** | Same as F2, for valve 2. A separate fuse means a fault on one valve doesn't take out the other. |
+| F4 | 12V feed to Relay 3 NC + Relay 4 NO (Pond Drain) | **2A** | The A150 motor draws up to 1A while moving, with a short startup surge. A 1A fuse could blow on the surge. |
 
-The relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together draw about 0.2A from the 12V side through the LM2596, which is covered by F1.
+The four relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together draw about 0.3A from the 12V side through the LM2596, which is covered by F1.
+
+### Power budget (12V 3A supply)
+
+| Load | Current at 12V |
+|------|----------------|
+| Filter valve 1 or 2, while moving | ~0.4A each |
+| Pond Drain, while moving | ≤1A (surge maybe 1.5A) |
+| ESP32 + 4 relay coils | ~0.3A |
+
+To stay well inside 3A, the **firmware never starts the drain while a filter valve is moving, and never starts a flush while the drain is moving**. A filter valve counts as moving for 5 s after it switches. Closing a filter valve is never delayed. So the worst case in practice is about 1.8A. A flush or drain move may start a few seconds late because of this.
 
 ---
 
@@ -168,8 +212,10 @@ The relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together dr
 | 2  | Built-in LED | Solid = WiFi connected, blinking = connecting |
 | 26 | Relay 1 IN (filter 1 valve) | Active LOW. LOW = OPEN, HIGH = CLOSED |
 | 27 | Relay 2 IN (filter 2 valve) | Active LOW. LOW = OPEN, HIGH = CLOSED |
+| 25 | Relay 3 IN (Pond Drain red) | Active LOW. See the relay table above |
+| 33 | Relay 4 IN (Pond Drain black) | Active LOW. See the relay table above |
 
-GPIOs 26/27 are not strapping pins and don't glitch during boot. While the ESP32 boots, the module's own pull-ups keep both relays off, so both valves stay closed.
+GPIOs 25/26/27/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves stay closed and the drain drives closed.
 
 ---
 
@@ -204,9 +250,26 @@ How the cycle behaves:
 - **Changing the wait time while running:** the next flush is rescheduled from the end of the last one. If that time has already passed, it flushes right away.
 - The **ESP32 runs the timer itself** and saves the settings in flash. The cycle keeps going if WiFi or the server goes down, and resumes after a reboot. After a reboot, the first flush comes one wait period later.
 
+### Pond Drain (Web Page)
+
+The **Pond Drain** card has:
+- **Open:** opens fully.
+- **Close:** closes fully.
+- **Partial open:** 10%–90% in steps of 10.
+
+Opening (fully or partly) asks for confirmation first. The card shows the position, and while the drain moves it shows "Moving to 30% open — now about 12%".
+
+How partial open works: the valve has no position sensor, so the board **times** the motor. Full travel is `DRAIN_TRAVEL_MS` (11 s, from the datasheet). Opening to 30% from closed runs the motor for 30% of that, then switches to "hold" (relay 3 only). Moving from 30% to 60% runs it for another 30%, and so on. Fully open and fully closed run 2 s past the full travel time so the valve always reaches its end stop, which corrects any drift in the estimate.
+
+Keep in mind that a ball valve's flow isn't proportional to how far it's open: 30% open passes much less than 30% of full flow.
+
+**Calibrate the travel time:** from fully closed, press Open and time it until the valve's position indicator stops. If it isn't about 11 s, change `DRAIN_TRAVEL_MS` in the sketch and reflash.
+
+**After a restart or power loss the drain closes and stays closed**, even if it was open. A web command is applied only once: the server keeps a command counter (`drain_cmd_seq`), and the board saves the last one it applied in flash, so a reboot never replays an old "open". The board also saves its last position. If it was open when it restarted, it logs "closed after restart" in the event log.
+
 ### Talking to the Server
 
-Unit E **reports to the server every 2 s** (`POST /api/filter_report.php`, Bearer key). The server's reply contains the cycle settings chosen on the web page, and the board applies them. So a change on the web page (like Start) reaches the board within about 2 s. Until then the card shows "Sending to Unit E…".
+Unit E **reports to the server every 2 s** (`POST /api/filter_report.php`, Bearer key). The server's reply contains the cycle settings and the Pond Drain target chosen on the web page, and the board applies them. So a change on the web page (like Start) reaches the board within about 2 s. Until then the card shows "Sending to Unit E…".
 
 The board reaches the server through `paradisepond.tech` (Cloudflare), about 0.1–0.2 s per check-in. That means it depends on the internet connection. Using the Mac's LAN address (`http://192.168.1.128/irrigation`) instead would avoid that, but the macOS firewall currently blocks incoming LAN connections to Apache.
 
@@ -228,10 +291,12 @@ Every valve open and close appears in **Recent Valve Events** on the dashboard, 
 | flush cycle | The automatic cycle opened or closed the valve |
 | cycle stopped | Stop flush cycle was pressed and closed the valve |
 | local LAN command | `/flush` or `/close` was called directly on the board |
+| web page — 30% open | Pond Drain moved from the web page (the % is shown for partial positions) |
+| closed after restart | Pond Drain was open when the board restarted, so it closed |
 
 The board queues each open/close (up to 32) and sends them with its next report. Flushes are logged even if a check-in fails, and events from a WiFi outage are sent when it reconnects. The time shown is when the valve actually moved. Each event has a sequence number, so a report that's sent twice doesn't create duplicates.
 
-Each filter has a row in the `zones` table (ids 16 and 17, unit 5) so `valve_events` can refer to it. These ids are outside the 1–15 range, so they can't be opened from the zone controls or scheduled.
+Each valve has a row in the `zones` table (16 and 17 for the filters, 18 for the Pond Drain, all unit 5) so `valve_events` can refer to it. These ids are outside the 1–15 range, so they can't be opened from the zone controls or scheduled.
 
 ### Local Endpoints (LAN only, for testing)
 
@@ -265,4 +330,5 @@ The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps manu
 
 ## Not Yet Done
 
+- Pond Drain hardware: second 2-relay module (on order), F4 fuse, F1 → 3A, bench test, and timing a full open to calibrate `DRAIN_TRAVEL_MS`. Firmware and web card are done.
 - Flushing when the filter's pressure drop gets too high (would need a pressure sensor).

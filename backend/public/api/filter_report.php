@@ -1,10 +1,12 @@
 <?php
 // Called by Unit E every 2 seconds — API key auth, no session required.
-// Stores the unit's status and valve events, and replies with the desired flush cycles.
+// Stores the unit's status and valve events, and replies with the desired flush cycles
+// and Pond Drain target.
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/FilterFlush.php';
+require_once __DIR__ . '/../../src/PondDrain.php';
 
 header('Content-Type: application/json');
 
@@ -47,10 +49,24 @@ foreach (FilterFlush::ZONE_IDS as $n => $zoneId) {
     $stateStmt->execute([$valve, $valve, $zoneId]);
 }
 
+// Pond Drain status
+$drain = null;
+if (is_array($body['drain'] ?? null)) {
+    $d     = $body['drain'];
+    $drain = [
+        'position_pct' => max(0, min(100, (int)($d['position_pct'] ?? 0))),
+        'target_pct'   => max(0, min(100, (int)($d['target_pct'] ?? 0))),
+        'moving'       => (bool)($d['moving'] ?? false),
+        'seq'          => (int)($d['seq'] ?? 0),
+    ];
+    $drainState = $drain['position_pct'] > 0 || $drain['moving'] ? 'open' : 'closed';
+    $stateStmt->execute([$drainState, $drainState, PondDrain::ZONE_ID]);
+}
+
 $db->prepare("
     INSERT INTO settings (key_name, value) VALUES ('filter_last_report', ?)
     ON DUPLICATE KEY UPDATE value = VALUES(value)
-")->execute([json_encode(['filters' => $filters, 'uptime_s' => (int)($body['uptime_s'] ?? 0)])]);
+")->execute([json_encode(['filters' => $filters, 'drain' => $drain, 'uptime_s' => (int)($body['uptime_s'] ?? 0)])]);
 
 // A logging failure must never block the reply — the unit needs it to get Start/Stop
 if (!empty($body['events']) && is_array($body['events'])) {
@@ -61,4 +77,4 @@ if (!empty($body['events']) && is_array($body['events'])) {
     }
 }
 
-echo json_encode(['filters' => array_values(FilterFlush::desiredAll())]);
+echo json_encode(['filters' => array_values(FilterFlush::desiredAll()), 'drain' => PondDrain::desired()]);

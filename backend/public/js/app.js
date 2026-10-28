@@ -1,5 +1,5 @@
 // ── State ─────────────────────────────────────────────────────────────────────
-let zones = [], schedules = [], pendingZone = null, filter = null;
+let zones = [], schedules = [], pendingZone = null, filter = null, drainFollowTimer = null;
 const POLL_MS = 15000;
 
 // ── API wrapper — redirects to login on session expiry ────────────────────────
@@ -41,6 +41,11 @@ async function fetchAll() {
 
         zones     = status.zones     || [];
         schedules = status.schedules || [];
+
+        // Follow the drain while it moves (one timer at a time)
+        if (filter?.drain?.reported?.moving && !drainFollowTimer) {
+            drainFollowTimer = setTimeout(() => { drainFollowTimer = null; fetchAll(); }, 2000);
+        }
 
         renderUnitPills(status.temps || []);
         renderZones();
@@ -121,7 +126,78 @@ function renderExtraUnits() {
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
       <div class="zone-unit-header">Unit E — Pre-filter Flush</div>
-      ${(filter?.filters || []).map(filterCard).join('')}`;
+      ${(filter?.filters || []).map(filterCard).join('')}
+      ${filter?.drain ? drainCard(filter.drain) : ''}`;
+}
+
+function drainCard(d) {
+    const want    = d.desired;
+    const got     = d.reported;
+    const online  = filter.online;
+    const pending = online && got && got.seq !== want.seq;
+    const pos     = got?.position_pct ?? 0;
+    const isOpen  = online && got && (pos > 0 || got.moving);
+
+    let detail, badge;
+    if (!online) {
+        detail = 'Unit E offline' + (filter.last_seen ? ` — last seen ${new Date(filter.last_seen).toLocaleString()}` : '');
+    } else if (!got) {
+        detail = 'Waiting for Unit E…';
+    } else if (pending) {
+        detail = 'Sending to Unit E…';
+    } else if (got.moving) {
+        detail = `Moving to ${got.target_pct === 0 ? 'closed' : got.target_pct + '% open'} — now about ${pos}%`;
+    } else {
+        detail = pos === 0 ? 'Closed' : pos === 100 ? 'Fully open' : `Partly open — ${pos}%`;
+    }
+    badge = !isOpen ? 'Closed' : pos === 100 && !got.moving ? 'Open' : `${pos}%`;
+
+    const partial = Array.from({ length: 9 }, (_, i) => (i + 1) * 10)
+        .map(v => `<option value="${v}">${v}% open</option>`).join('');
+    const busy = !online || !got || pending;
+
+    return `
+    <div class="zone-card special ${isOpen ? 'valve-open' : ''}" id="pond-drain">
+      <div class="zone-header">
+        <div>
+          <div class="zone-name">Pond Drain</div>
+          <div class="zone-id">2" drain valve</div>
+        </div>
+        <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${badge}</span>
+      </div>
+      <div class="zone-sensors">${detail}</div>
+      <div class="zone-actions">
+        <button class="btn-open"  onclick="setDrain(100)" ${busy || (pos === 100 && !got?.moving) ? 'disabled' : ''}>Open</button>
+        <button class="btn-close" onclick="setDrain(0)"   ${busy || (pos === 0 && !got?.moving) ? 'disabled' : ''}>Close</button>
+      </div>
+      <label class="card-field">Partial open
+        <select onchange="if (this.value) setDrain(parseInt(this.value))" ${busy ? 'disabled' : ''}>
+          <option value="">Choose…</option>${partial}
+        </select>
+      </label>
+    </div>`;
+}
+
+async function setDrain(pct) {
+    // Opening drains the pond — make sure it's intended
+    if (pct > 0 && !confirm(`Open the Pond Drain ${pct === 100 ? 'fully' : 'to ' + pct + '%'}?`)) {
+        renderExtraUnits();
+        return;
+    }
+    try {
+        const res  = await apiFetch('/api/drain.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_pct: pct }),
+        });
+        const data = await res.json();
+        if (!data.success) alert('Error: ' + (data.error || 'Unknown error'));
+        document.activeElement?.blur();
+        fetchAll();
+        setTimeout(fetchAll, 3000);    // Unit E picks up changes within 2 s
+    } catch (e) {
+        if (e.message !== 'session_expired') alert('Network error — could not reach server.');
+    }
 }
 
 function filterCard(f) {

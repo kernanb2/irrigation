@@ -42,6 +42,23 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 #define CYCLE_MIN         10
 #define CYCLE_MAX         120
 
+// Filter valves count as "moving" (drawing motor current) this long after switching
+#define FILTER_TRAVEL_MS  5000
+
+// ── Pond Drain ────────────────────────────────────────────────────────────────
+// BOKYWOX/Tonhe A150 2" valve, CR2-01 = 2-wire reverse polarity: red + / black −
+// closes, black + / red − opens; it stops itself at each end. No position sensor,
+// so partial positions are timed from DRAIN_TRAVEL_MS.
+//   Relay 3 (GPIO 25): COM → red,   NC → +12V, NO → GND
+//   Relay 4 (GPIO 33): COM → black, NC → GND,  NO → +12V
+//   both off = CLOSE (also the power-off / crash state), both on = OPEN,
+//   relay 3 only = HOLD (both wires to GND, motor stopped)
+#define DRAIN_RD_PIN      25
+#define DRAIN_BK_PIN      33
+#define DRAIN_TRAVEL_MS   11000   // full closed→open time (datasheet ≤11 s) — measure and adjust
+#define DRAIN_END_MARGIN_MS 2000  // extra drive at 0%/100% so it always reaches the end stop
+#define DRAIN_INDEX       2       // device number 3 in events (filters are 0 and 1)
+
 // ── Global state ──────────────────────────────────────────────────────────────
 WebServer       server(80);
 Preferences     prefs;
@@ -54,8 +71,23 @@ struct Filter {
     uint16_t      flushSec;
     uint16_t      waitMin;
     unsigned long nextFlushMs;    // valid while cycleEnabled and valve closed
+    unsigned long lastChangeMs;   // last open/close, for the power-sharing check
 };
 Filter filters[NUM_FILTERS];
+
+enum DrainDrive : uint8_t { DRIVE_CLOSE, DRIVE_OPEN, DRIVE_HOLD };
+
+struct Drain {
+    float         posPct;         // estimated position, 0 = closed
+    uint8_t       targetPct;
+    bool          moving;
+    bool          movePending;    // new target waiting for the filter valves to stop
+    float         startPct;
+    unsigned long moveStartMs;
+    unsigned long moveEndMs;
+    uint32_t      appliedSeq;     // last web command applied (kept across reboots)
+    uint8_t       pendingReason;
+} drain;
 
 unsigned long   lastReportMs  = 0;
 
@@ -63,13 +95,14 @@ unsigned long   lastReportMs  = 0;
 // Every open/close is queued and sent with the next report, so flushes shorter
 // than the report interval still reach the event log. seq starts at 1 each boot;
 // the server uses boot_id + seq to skip events it already stored.
-enum Reason : uint8_t { REASON_CYCLE, REASON_STOP, REASON_MANUAL };
-const char* REASON_NAME[] = {"cycle", "stop", "manual"};
+enum Reason : uint8_t { REASON_CYCLE, REASON_STOP, REASON_MANUAL, REASON_WEB, REASON_RESTART };
+const char* REASON_NAME[] = {"cycle", "stop", "manual", "web", "restart"};
 
 struct ValveEvent {
     uint32_t      seq;
-    uint8_t       filter;        // 0-based
+    uint8_t       filter;        // 0-based; DRAIN_INDEX = Pond Drain
     bool          open;
+    uint8_t       pct;           // drain target position
     Reason        reason;
     unsigned long atMs;
 };
@@ -79,12 +112,12 @@ uint8_t         eventCount    = 0;
 uint32_t        nextEventSeq  = 1;
 uint32_t        bootId        = 0;
 
-void queueEvent(uint8_t f, bool open, Reason reason) {
+void queueEvent(uint8_t f, bool open, Reason reason, uint8_t pct = 0) {
     if (eventCount == EVENT_QUEUE_LEN) {   // full (long WiFi outage) — drop the oldest
         memmove(eventQueue, eventQueue + 1, sizeof(ValveEvent) * (EVENT_QUEUE_LEN - 1));
         eventCount--;
     }
-    eventQueue[eventCount++] = {nextEventSeq++, f, open, reason, millis()};
+    eventQueue[eventCount++] = {nextEventSeq++, f, open, pct, reason, millis()};
 }
 
 void dropSentEvents(uint8_t sent) {
@@ -101,7 +134,8 @@ void setValve(uint8_t f, bool open, Reason reason) {
     // never be left on while the sketch thinks the valve is closed
     digitalWrite(RELAY_PIN[f], open ? RELAY_ON : RELAY_OFF);
     if (fl.valveOpen == open) return;
-    fl.valveOpen = open;
+    fl.valveOpen    = open;
+    fl.lastChangeMs = millis();
     if (!open) fl.nextFlushMs = millis() + fl.waitMin * 60000UL;   // also covers a manual /close
     queueEvent(f, open, reason);
     Serial.printf("Filter %d valve %s (%s)\n", f + 1, open ? "OPEN" : "CLOSED", REASON_NAME[reason]);
@@ -111,6 +145,90 @@ void startFlush(uint8_t f, uint32_t seconds, Reason reason) {
     setValve(f, true, reason);
     filters[f].flushEndMs  = millis() + seconds * 1000UL + VALVE_OPEN_TRAVEL_MS;
     filters[f].lastFlushMs = millis();
+}
+
+// ── Power sharing ─────────────────────────────────────────────────────────────
+// The 12V 3A supply can't comfortably run the drain motor (~1A) together with
+// both filter motors, so the drain never starts while a filter valve is moving
+// and a flush never starts while the drain is moving. (Closing is never delayed.)
+bool filterMoving() {
+    for (uint8_t f = 0; f < NUM_FILTERS; f++) {
+        if (filters[f].lastChangeMs && millis() - filters[f].lastChangeMs < FILTER_TRAVEL_MS) return true;
+    }
+    return false;
+}
+
+// ── Pond Drain control ────────────────────────────────────────────────────────
+void setDrainDrive(DrainDrive d) {
+    digitalWrite(DRAIN_RD_PIN, d == DRIVE_CLOSE ? RELAY_OFF : RELAY_ON);
+    digitalWrite(DRAIN_BK_PIN, d == DRIVE_OPEN  ? RELAY_ON  : RELAY_OFF);
+}
+
+// Resting drive for a position: the end stops hold 0% and 100%, HOLD keeps a partial
+DrainDrive restingDrive(uint8_t pct) {
+    return pct == 0 ? DRIVE_CLOSE : pct == 100 ? DRIVE_OPEN : DRIVE_HOLD;
+}
+
+void saveDrain() {
+    prefs.begin("drain", false);
+    prefs.putUChar("pos", (uint8_t)(drain.posPct + 0.5f));
+    prefs.putULong("seq", drain.appliedSeq);
+    prefs.end();
+}
+
+void startDrainMove() {
+    drain.movePending = false;
+    float delta = drain.targetPct - drain.posPct;
+
+    if (fabsf(delta) < 0.5f && drain.targetPct != 0 && drain.targetPct != 100) {
+        setDrainDrive(restingDrive(drain.targetPct));
+        return;
+    }
+
+    unsigned long ms = (unsigned long)(fabsf(delta) / 100.0f * DRAIN_TRAVEL_MS);
+    if (drain.targetPct == 0 || drain.targetPct == 100) ms += DRAIN_END_MARGIN_MS;
+
+    bool opening = drain.targetPct > drain.posPct;
+    setDrainDrive(opening ? DRIVE_OPEN : DRIVE_CLOSE);
+    drain.moving      = true;
+    drain.startPct    = drain.posPct;
+    drain.moveStartMs = millis();
+    drain.moveEndMs   = millis() + ms;
+    queueEvent(DRAIN_INDEX, drain.targetPct > 0 && opening, (Reason)drain.pendingReason, drain.targetPct);
+    Serial.printf("Drain %s to %d%% (%lu ms)\n", opening ? "opening" : "closing", drain.targetPct, ms);
+}
+
+// New target from the web page (or a restart). Starts once no filter valve is moving.
+void setDrainTarget(uint8_t pct, Reason reason) {
+    if (drain.moving) {                       // stop where it is and re-plan from there
+        setDrainDrive(DRIVE_HOLD);
+        drain.moving = false;
+    }
+    drain.targetPct     = pct;
+    drain.pendingReason = reason;
+    drain.movePending   = true;
+}
+
+void runDrain() {
+    unsigned long now = millis();
+
+    if (drain.moving) {
+        float done = (float)(now - drain.moveStartMs) / DRAIN_TRAVEL_MS * 100.0f;
+        drain.posPct = drain.targetPct > drain.startPct
+                     ? min(drain.startPct + done, (float)drain.targetPct)
+                     : max(drain.startPct - done, (float)drain.targetPct);
+        if ((long)(now - drain.moveEndMs) >= 0) {
+            drain.moving = false;
+            drain.posPct = drain.targetPct;
+            setDrainDrive(restingDrive(drain.targetPct));
+            saveDrain();
+            Serial.printf("Drain at %d%%\n", drain.targetPct);
+        }
+    }
+
+    if (drain.movePending && !drain.moving && !filterMoving()) {
+        startDrainMove();
+    }
 }
 
 // ── Automatic flush cycle ─────────────────────────────────────────────────────
@@ -159,7 +277,7 @@ void applyCycle(uint8_t f, bool enabled, int flushSec, int waitMin) {
     if (!enabled) {
         setValve(f, false, REASON_STOP);
     } else if (starting) {
-        startFlush(f, fl.flushSec, REASON_CYCLE);
+        fl.nextFlushMs = millis();   // flush now — runCycles starts it once the drain isn't moving
     } else if (!fl.valveOpen) {
         fl.nextFlushMs = lastCloseMs + fl.waitMin * 60000UL;
     }
@@ -172,7 +290,7 @@ void runCycles() {
         if (fl.valveOpen && (long)(now - fl.flushEndMs) >= 0) {
             setValve(f, false, fl.cycleEnabled ? REASON_CYCLE : REASON_MANUAL);
         }
-        if (fl.cycleEnabled && !fl.valveOpen && (long)(now - fl.nextFlushMs) >= 0) {
+        if (fl.cycleEnabled && !fl.valveOpen && !drain.moving && (long)(now - fl.nextFlushMs) >= 0) {
             startFlush(f, fl.flushSec, REASON_CYCLE);
         }
     }
@@ -203,6 +321,12 @@ void fillStatus(JsonDocument& doc) {
             o["next_flush_in_s"] = nullptr;
         }
     }
+    JsonObject d = doc["drain"].to<JsonObject>();
+    d["position_pct"] = (int)(drain.posPct + 0.5f);
+    d["target_pct"]   = drain.targetPct;
+    d["moving"]       = drain.moving || drain.movePending;
+    d["seq"]          = drain.appliedSeq;
+
     doc["uptime_s"] = now / 1000;
     doc["ip"]       = WiFi.localIP().toString();
 }
@@ -222,6 +346,7 @@ void reportToServer() {
         e["filter"]  = eventQueue[i].filter + 1;
         e["action"]  = eventQueue[i].open ? "open" : "close";
         e["reason"]  = REASON_NAME[eventQueue[i].reason];
+        if (eventQueue[i].filter == DRAIN_INDEX) e["pct"] = eventQueue[i].pct;
         e["ago_s"]   = (now - eventQueue[i].atMs) / 1000;
     }
 
@@ -244,6 +369,14 @@ void reportToServer() {
                 applyCycle(f, want[f]["cycle_enabled"] | false,
                               want[f]["flush_sec"] | 0,
                               want[f]["wait_min"] | 0);
+            }
+            // Drain: only a new command (seq changed) moves it, so a reboot never replays one
+            uint32_t seq = reply["drain"]["seq"] | drain.appliedSeq;
+            int pct      = reply["drain"]["target_pct"] | -1;
+            if (seq != drain.appliedSeq && pct >= 0 && pct <= 100) {
+                drain.appliedSeq = seq;
+                saveDrain();
+                setDrainTarget(pct, REASON_WEB);
             }
         } else {
             Serial.println("Server reply not understood");
@@ -276,6 +409,10 @@ void handleFlush() {
         server.send(200, "application/json",
                     "{\"ok\":false,\"error\":\"valve must be 1-" + String(NUM_FILTERS) +
                     ", seconds 1-" + String(MAX_FLUSH_SEC) + "\"}");
+        return;
+    }
+    if (drain.moving) {
+        server.send(200, "application/json", "{\"ok\":false,\"error\":\"Pond Drain is moving — try again shortly\"}");
         return;
     }
     startFlush(f, seconds, REASON_MANUAL);
@@ -316,7 +453,7 @@ void connectWiFi() {
 
 // ── Setup / loop ──────────────────────────────────────────────────────────────
 void setup() {
-    // Drive relays off before anything else so both valves stay closed.
+    // Drive relays off before anything else so all valves stay closed.
     // pinMode first: on ESP32 core 3.x a digitalWrite before pinMode is ignored,
     // and the pin then defaults LOW (= relay ON, valve opens). The few µs of LOW
     // between these two calls is far too short for the relay to react.
@@ -324,6 +461,9 @@ void setup() {
         pinMode(RELAY_PIN[f], OUTPUT);
         digitalWrite(RELAY_PIN[f], RELAY_OFF);
     }
+    pinMode(DRAIN_RD_PIN, OUTPUT);
+    pinMode(DRAIN_BK_PIN, OUTPUT);
+    setDrainDrive(DRIVE_CLOSE);   // both relays off — drain drives closed
     pinMode(LED_BUILTIN_PIN, OUTPUT);
 
     Serial.begin(115200);
@@ -337,6 +477,19 @@ void setup() {
                       filters[f].cycleEnabled ? "ON" : "OFF", filters[f].flushSec, filters[f].waitMin);
     }
 
+    // Pond Drain always closes after a restart. If it was open, log it and time the
+    // close so the position estimate is right; the last web command isn't replayed.
+    prefs.begin("drain", true);
+    uint8_t savedPos = prefs.getUChar("pos", 0);
+    drain.appliedSeq = prefs.getULong("seq", 0);
+    prefs.end();
+    drain.posPct = savedPos > 100 ? 100 : savedPos;
+    if (drain.posPct > 0) {
+        setDrainTarget(0, REASON_RESTART);
+        startDrainMove();
+    }
+    Serial.printf("Drain was at %d%% — closing\n", savedPos);
+
     connectWiFi();
 
     server.on("/status", HTTP_GET,  handleStatus);
@@ -348,6 +501,7 @@ void setup() {
 void loop() {
     server.handleClient();
     runCycles();
+    runDrain();
 
     bool online = WiFi.status() == WL_CONNECTED;
     digitalWrite(LED_BUILTIN_PIN, online ? HIGH : (millis() / 250) % 2);   // solid = online, blink = no WiFi
@@ -356,5 +510,6 @@ void loop() {
         lastReportMs = millis();
         reportToServer();
         runCycles();   // the report can take up to HTTP_TIMEOUT_MS — catch up on the timers
+        runDrain();
     }
 }
