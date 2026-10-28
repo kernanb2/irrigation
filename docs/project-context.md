@@ -9,8 +9,7 @@ A solar-powered, WiFi-connected irrigation controller spanning 15 zones across 3
 | Component       | Path                                              |
 |-----------------|---------------------------------------------------|
 | Web backend     | `/usr/local/var/irrigation/` (this repo)          |
-| Firmware        | `/Users/kernanb/Arduino/irrigation_controller/`   |
-| Provisioning    | `/Users/kernanb/Arduino/provision_unit/`          |
+| Firmware        | `firmware/irrigation_controller/` (zone units), `firmware/filter_flush/` (Unit E) |
 | Arduino libs    | `/Users/kernanb/Arduino/libraries/`               |
 
 Arduino IDE sketchbook location must be set to `/Users/kernanb/Arduino` (File → Preferences).
@@ -19,16 +18,14 @@ Arduino IDE sketchbook location must be set to `/Users/kernanb/Arduino` (File �
 
 ## Firmware
 
-- **Main sketch:** `irrigation_controller.ino`
-- **Provisioning sketch:** `provision_unit.ino` — writes unit ID to NVS, run once per board before flashing main sketch
-- **Libraries:** WiFi, WebServer, Preferences, OneWire, DallasTemperature, ArduinoJson, HTTPClient
-- **Unit ID:** stored in NVS namespace `unit`, key `id`. If 0, device halts with fast LED blink.
-- **Valve states:** persisted to NVS namespace `valves`
-- **Local REST API (port 80):**
-  - `GET /status` — zone valve states, moisture readings, temperature, uptime
-  - `POST /valve` — body: `{"zone": N, "open": true/false}`
-- **Sensor reporting:** POSTs to central server every 60s with Bearer token auth
-- **API keys:** one per board, in `backend/config/device_keys.php` (git-ignored). Zone units store theirs in NVS namespace `unit`, key `api_key` (set by provisioning). A key is only accepted for its own `unit_id`.
+- **Main sketch:** `firmware/irrigation_controller/irrigation_controller.ino` (same sketch for A, B and C)
+- **Unit ID, WiFi and API key:** `firmware/irrigation_controller/secrets.h` (git-ignored, copy from `secrets.example.h`). Set `SECRET_UNIT_ID` (1/2/3) and that unit's key before flashing each board. The old NVS provisioning sketch is no longer used.
+- **Libraries:** WiFi, WebServer, Preferences, OneWire, DallasTemperature, ArduinoJson 7, HTTPClient
+- **Server polling:** the board POSTs `/api/unit_report.php` every 5 s with its valve states and queued valve events (boot_id + seq), plus moisture/temperature once a minute. The reply lists each zone's desired state and seconds left to run: `{"zones":[{"open":true,"run_s":1740}, …]}`.
+- **Run timer on the board:** every open valve has an end time and the board closes it itself when it passes, even without WiFi. Web-page Open runs for up to `max_zone_duration_sec` (60 min) unless closed sooner; schedules run for their duration.
+- **Power-up:** all valves are pulsed closed (latching solenoids keep their last state and the run timer is lost). If a run is still wanted, the first check-in reopens it for the remaining time.
+- **Local REST API (port 80):** `GET /status` only — valve states, moisture, temperature, uptime. Valves are controlled from the web page.
+- **API keys:** one per board, in `backend/config/device_keys.php` (git-ignored). A key is only accepted for its own `unit_id`. Unit A's key was rotated 2026-10-28.
 
 ---
 
@@ -104,7 +101,7 @@ VCC  → 3.3V
 GND  → GND
 AOUT → ADC pin (32–36)
 ```
-Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_calibration` DB table.
+Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_calibration` DB table. Readings below 1000 (`ZoneUnit::MIN_SENSOR_RAW`) mean no sensor is connected: the raw value is stored but no percentage, so the card shows "No sensor data".
 
 ---
 
@@ -131,8 +128,8 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 - **URL:** `https://paradisepond.tech/irrigation/`
 - **Public files:** `backend/public/` — index.php, login.php, css/style.css, js/app.js
-- **API endpoints:** `backend/public/api/` — status.php, valve.php, sensors.php, schedules.php, settings.php, events.php
-- **PHP classes:** `backend/src/` — Auth.php, Database.php, Unit.php
+- **API endpoints:** `backend/public/api/` — status.php, valve.php, unit_report.php, schedules.php, settings.php, events.php (plus Unit E: filter.php, filter_report.php, drain.php)
+- **PHP classes:** `backend/src/` — Auth.php, Database.php, ZoneUnit.php (plus Unit E: FilterFlush.php, PondDrain.php)
 - **Config:** `backend/config/config.php` — DB connection, API key, timezone (America/Chicago), BASE_PATH=/irrigation
 - **Cron:** `backend/cron/check_schedules.php` — evaluates schedules and moisture thresholds
 - **DB:** MySQL, database name `irrigation`
@@ -140,7 +137,9 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 - **Dashboard:** polls every 15s — valve states, moisture bars, unit online/offline pills, schedules, event log
 
 ### DB Tables
-`users`, `units`, `zones`, `moisture_readings`, `temperature_readings`, `valve_events`, `schedules`, `pending_closes`, `sensor_calibration`, `settings`
+`users`, `units`, `unit_status`, `zones`, `moisture_readings`, `temperature_readings`, `valve_events`, `schedules`, `pending_closes` (no longer used), `sensor_calibration`, `settings`
+
+`zones.desired_state` / `desired_until` / `desired_trigger` / `desired_by` hold what the web page or a schedule wants; `zones.valve_state` is what the unit last reported. `unit_status` holds each zone unit's last check-in and event-log cursor.
 
 ### Key Settings Rows (settings table)
 `auto_mode_enabled`, `moisture_trigger_threshold`, `creek_pond_interlock`, `max_zone_duration_sec`
@@ -149,7 +148,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 ## Build Status (2026-06-10)
 
-- **Unit A:** provisioned and online — IP is DHCP-assigned, was 192.168.1.124 last session (may change)
+- **Unit A:** IP 192.168.1.45. **2026-10-28:** switched to server polling (`/api/unit_report.php`) with a new key; being reflashed with the repo sketch
 - **Units B & C:** not yet built
 - **First valve bench test in progress:**
   - Zone 1 (GPIO 4 IN1, GPIO 5 IN2) → DRV8871 → Rainbird latching solenoid
@@ -175,10 +174,10 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 
 ## Known Issues / Architecture Notes
 
-- **Server cannot reach ESP32 directly** — Apache runs on this Mac (same LAN as the ESP32s), but **macOS Local Network privacy blocks httpd** from connecting to LAN devices ("No route to host"; the router at 192.168.1.1 is exempt). Web UI valve commands fail with "could not reach unit". Unit E works around this by polling the server (`/api/filter_report.php`); the zone units should do the same. (Allowing httpd under System Settings → Privacy & Security → Local Network may also work, but polling keeps working if the server moves.)
+- **Server cannot reach ESP32 directly** — Apache runs on this Mac (same LAN as the ESP32s), but **macOS Local Network privacy blocks httpd** from connecting to LAN devices ("No route to host"; the router at 192.168.1.1 is exempt). So every board polls the server: Unit E via `/api/filter_report.php`, Units A–C via `/api/unit_report.php`. (Allowing httpd under System Settings → Privacy & Security → Local Network may also work, but polling keeps working if the server moves.)
 - **Apache access log skips ESP32 check-ins** — `/usr/local/etc/httpd/httpd.conf` (outside this repo), in the `<VirtualHost *:80>` block:
   ```
-  SetEnvIf Request_URI "^/irrigation/api/filter_report\.php$" esp32_checkin
+  SetEnvIf Request_URI "^/irrigation/api/(filter|unit)_report\.php$" esp32_checkin
   CustomLog "/usr/local/var/log/httpd/access_log_80" common env=!esp32_checkin
   ```
   Check-ins every 2 s would otherwise add ~4 MB/day per board. Valve events are in the DB, not this log. Add new check-in endpoints (e.g. for Units A–C) to the `SetEnvIf` pattern.

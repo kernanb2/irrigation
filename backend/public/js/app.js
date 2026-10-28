@@ -1,5 +1,5 @@
 // ── State ─────────────────────────────────────────────────────────────────────
-let zones = [], schedules = [], pendingZone = null, filter = null, drainFollowTimer = null;
+let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
 const POLL_MS = 15000;
 
 // ── API wrapper — redirects to login on session expiry ────────────────────────
@@ -41,13 +41,19 @@ async function fetchAll() {
 
         zones     = status.zones     || [];
         schedules = status.schedules || [];
+        units     = Object.fromEntries((status.units || []).map(u => [u.id, u]));
+
+        // Follow a zone valve until its unit has picked up the change (one timer at a time)
+        if (zones.some(z => units[z.unit_id]?.online == 1 && z.desired_state !== z.valve_state) && !zoneFollowTimer) {
+            zoneFollowTimer = setTimeout(() => { zoneFollowTimer = null; fetchAll(); }, 2000);
+        }
 
         // Follow the drain while it moves (one timer at a time)
         if (filter?.drain?.reported?.moving && !drainFollowTimer) {
             drainFollowTimer = setTimeout(() => { drainFollowTimer = null; fetchAll(); }, 2000);
         }
 
-        renderUnitPills(status.temps || []);
+        renderUnitPills();
         renderZones();
         renderExtraUnits();
         renderSchedules();
@@ -59,14 +65,9 @@ async function fetchAll() {
 }
 
 // ── Unit status pills ─────────────────────────────────────────────────────────
-function renderUnitPills(temps) {
-    const unitsSeen = {};
-    temps.forEach(t => { unitsSeen[t.unit_id] = t.recorded_at; });
-
-    const now = Date.now() / 1000;
+function renderUnitPills() {
     const html = [1, 2, 3, 4, 5].map(uid => {
-        const ts    = unitsSeen[uid] ? new Date(unitsSeen[uid]).getTime() / 1000 : 0;
-        const alive = uid === 5 ? filter?.online : ts && (now - ts) < 180;
+        const alive = uid === 5 ? filter?.online : units[uid]?.online == 1;
         return `<span class="unit-pill ${alive ? 'online' : 'offline'}">Unit ${String.fromCharCode(64 + uid)}</span>`;
     }).join('');
 
@@ -93,10 +94,24 @@ function renderZones() {
 
 function zoneCard(z) {
     const isOpen     = z.valve_state === 'open';
+    const wantOpen   = z.desired_state === 'open';
+    const unit       = units[z.unit_id];
+    const online     = unit?.online == 1;
+    const pending    = online && wantOpen !== isOpen;
+    const unitName   = 'Unit ' + String.fromCharCode(64 + parseInt(z.unit_id));
     const moist      = z.moisture_pct !== null ? parseInt(z.moisture_pct) : null;
     const moistColor = moist === null ? '' : moist > 65 ? 'moist-high' : moist > 40 ? 'moist-mid' : moist > 25 ? 'moist-low' : 'moist-dry';
     const moistBar   = moist !== null ? `<div class="moisture-bar-wrap"><div class="moisture-bar ${moistColor}" style="width:${moist}%"></div></div>` : '';
     const moistLabel = moist !== null ? `Moisture: ${moist}%` : 'No sensor data';
+
+    let detail = '';
+    if (!online) {
+        detail = `${unitName} offline` + (unit?.last_seen ? ` — last seen ${new Date(unit.last_seen).toLocaleString()}` : '');
+    } else if (pending) {
+        detail = wantOpen ? `Opening — sending to ${unitName}…` : `Closing — sending to ${unitName}…`;
+    } else if (isOpen && z.run_left_s > 0) {
+        detail = `Closes in ${formatDuration(parseInt(z.run_left_s))}`;
+    }
 
     return `
     <div class="zone-card ${isOpen ? 'valve-open' : ''} ${z.is_special == 1 ? 'special' : ''}" id="zone-${z.id}">
@@ -107,11 +122,12 @@ function zoneCard(z) {
         </div>
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : 'Closed'}</span>
       </div>
+      ${detail ? `<div class="zone-sensors">${detail}</div>` : ''}
       <div class="zone-sensors">${moistLabel}</div>
       ${moistBar}
       <div class="zone-actions">
-        <button class="btn-open"  onclick="valveCmd(${z.id}, true)"  ${isOpen    ? 'disabled' : ''}>Open</button>
-        <button class="btn-close" onclick="valveCmd(${z.id}, false)" ${!isOpen   ? 'disabled' : ''}>Close</button>
+        <button class="btn-open"  onclick="valveCmd(${z.id}, true)"  ${!online || pending || isOpen  ? 'disabled' : ''}>Open</button>
+        <button class="btn-close" onclick="valveCmd(${z.id}, false)" ${!online || pending || !isOpen ? 'disabled' : ''}>Close</button>
       </div>
     </div>`;
 }

@@ -58,8 +58,8 @@ Add:
 | Endpoint              | Auth         | Method        | Description                      |
 |-----------------------|--------------|---------------|----------------------------------|
 | `/api/status.php`     | Session      | GET           | All zone states, moisture, temps |
-| `/api/valve.php`      | Session      | POST          | Open/close a valve               |
-| `/api/sensors.php`    | API Key      | POST          | ESP-32 sensor data ingestion     |
+| `/api/valve.php`      | Session      | POST          | Request a zone valve open/close (the unit applies it on its next check-in) |
+| `/api/unit_report.php` | API Key (Units A–C) | POST   | Zone unit check-in every 5 s: valve states, events, sensors; reply = desired valves |
 | `/api/filter.php`     | Session      | GET/POST      | Unit E: status (flush cycles + Pond Drain) / change flush settings |
 | `/api/drain.php`      | Session      | POST          | Unit E Pond Drain: set target position (0–100%) |
 | `/api/filter_report.php` | API Key (Unit E) | POST     | Unit E reports status and valve events, gets cycle settings |
@@ -74,7 +74,7 @@ backend/
 ├── apache/irrigation.conf    Apache vhost config
 ├── config/config.php         Credentials and settings
 ├── config/device_keys.php    Per-ESP32 API keys (git-ignored; see device_keys.example.php)
-├── cron/check_schedules.php  Schedule + auto-close processor (run every minute)
+├── cron/check_schedules.php  Starts scheduled runs (run every minute); units close valves on their own timers
 ├── db/
 │   ├── schema.sql            Full database schema
 │   └── create_user.php       CLI tool to create login accounts
@@ -89,5 +89,5 @@ backend/
     ├── Database.php          PDO singleton
     ├── FilterFlush.php       Unit E flush-cycle settings and event logging
     ├── PondDrain.php         Unit E Pond Drain target + command counter
-    └── Unit.php              ESP-32 communication
+    └── ZoneUnit.php          Units A–C: desired valve states, check-ins, events, sensor storage
 ```

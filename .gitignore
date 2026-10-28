@@ -5,3 +5,4 @@ node_modules/
 backend/.env
 backend/config/device_keys.php
 firmware/*/secrets.h
+backend/cron/cron.log

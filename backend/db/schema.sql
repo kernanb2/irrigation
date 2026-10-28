@@ -28,6 +28,16 @@ CREATE TABLE units (
 INSERT INTO units (id, name) VALUES (1, 'Unit-A'), (2, 'Unit-B'), (3, 'Unit-C'),
                                 (4, 'Unit-D'), (5, 'Unit-E');  -- D = placeholder, E = pre-filter flush
 
+-- Latest check-in from each zone unit (A–C) and its event-log cursor (boot_id + seq)
+CREATE TABLE unit_status (
+    unit_id     TINYINT UNSIGNED PRIMARY KEY,
+    report      JSON,
+    boot_id     VARCHAR(16),
+    event_seq   INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (unit_id) REFERENCES units(id)
+);
+
 -- ── Irrigation zones ──────────────────────────────────────────────────────────
 CREATE TABLE zones (
     id                TINYINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -35,7 +45,11 @@ CREATE TABLE zones (
     local_index       TINYINT UNSIGNED NOT NULL,
     name              VARCHAR(64) NOT NULL,
     description       TEXT,
-    valve_state       ENUM('open','closed') NOT NULL DEFAULT 'closed',
+    valve_state       ENUM('open','closed') NOT NULL DEFAULT 'closed',  -- as last reported by the unit
+    desired_state     ENUM('open','closed') NOT NULL DEFAULT 'closed',  -- what the web page / a schedule wants
+    desired_until     DATETIME NULL,                                    -- the unit closes the valve itself then
+    desired_trigger   ENUM('manual','schedule','auto_moisture','auto_temperature') NOT NULL DEFAULT 'manual',
+    desired_by        VARCHAR(64) NULL,
     last_state_change TIMESTAMP,
     enabled           BOOLEAN NOT NULL DEFAULT TRUE,
     is_special        BOOLEAN NOT NULL DEFAULT FALSE,

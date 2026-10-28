@@ -16,56 +16,18 @@ Install via Arduino IDE → Library Manager:
 2. Go to **Tools → Board → Boards Manager**, search `esp32`, install **esp32 by Espressif Systems**
 3. Select **Tools → Board → ESP32 Arduino → ESP32 Dev Module**
 
-## Provisioning (Set Unit ID and API Key)
+## Zone Units A–C (`irrigation_controller/`)
 
-Each board has its **own** API key. Keys live in `backend/config/device_keys.php` on the server (git-ignored). Before flashing the main sketch, run this one-time sketch to store the unit ID and that unit's key in NVS flash:
+The same sketch runs on all three boards. It reads the unit ID, WiFi settings and API key from `irrigation_controller/secrets.h` (git-ignored):
 
-```cpp
-#include <Preferences.h>
+1. Copy `secrets.example.h` to `secrets.h`.
+2. Set `SECRET_UNIT_ID` (1 = A, 2 = B, 3 = C) and paste in that unit's key (`unit-a` / `unit-b` / `unit-c` in `backend/config/device_keys.php`).
+3. Flash. Before flashing the next board, change both lines in `secrets.h`.
 
-#define UNIT_ID 1                          // 1, 2, or 3 for Unit A, B, C
-#define API_KEY "PASTE_KEY_FOR_THIS_UNIT"  // 'unit-a' / 'unit-b' / 'unit-c' in device_keys.php
+The board checks in with the server every 5 s (`/api/unit_report.php`); the reply says which valves should be open and for how much longer. The board closes each valve itself when its time is up, even without WiFi, and closes all valves at power-up. Only `GET /status` is served locally — valves are controlled from the web page.
 
-void setup() {
-    Serial.begin(115200);
-    delay(1000);
-    Preferences prefs;
-    prefs.begin("unit", false);
-    prefs.putUChar("id", UNIT_ID);
-    prefs.putString("api_key", API_KEY);
-    prefs.end();
-    Serial.printf("Unit ID %d and API key saved.\n", UNIT_ID);
-}
-void loop() {}
-```
-
-Don't commit the provisioning sketch with a real key in it. If the unit ID or key is missing, the main sketch halts with a fast-blinking LED.
-
-**Rotating a key:** run `openssl rand -hex 32`, put the result in `device_keys.php`, then re-run provisioning on that board. You don't need to reflash the main sketch.
+**Rotating a key:** run `openssl rand -hex 32`, put the result in `device_keys.php` and the board's `secrets.h`, then reflash that board.
 
 ### Filter flush board
 
 `filter_flush/` reads its WiFi settings and key from `filter_flush/secrets.h` (git-ignored). Copy `secrets.example.h` to `secrets.h` and paste in the `filter-flush` key from `device_keys.php`.
-
-## Configuration
-
-Edit these lines in `irrigation_controller.ino` before flashing:
-```cpp
-const char* WIFI_SSID     = "YOUR_SSID";
-const char* WIFI_PASSWORD = "YOUR_PASSWORD";
-const char* SERVER_URL    = "http://YOUR_SERVER_IP:3000";
-```
-
-## REST API
-
-| Endpoint  | Method | Description              |
-|-----------|--------|--------------------------|
-| `/status` | GET    | Returns zone states, moisture readings, temperature |
-| `/valve`  | POST   | Open or close a valve    |
-
-### POST /valve
-```json
-{ "zone": 0, "open": true }
-```
-- `zone`: 0–4 (local index within this unit)
-- `open`: true = open valve, false = close valve

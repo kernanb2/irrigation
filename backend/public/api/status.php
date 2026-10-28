@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
+require_once __DIR__ . '/../../src/ZoneUnit.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -11,6 +12,8 @@ $db = Database::get();
 $zones = $db->query("
     SELECT z.id, z.unit_id, z.local_index, z.name, z.valve_state,
            z.last_state_change, z.enabled, z.is_special,
+           IF(z.desired_state = 'open' AND z.desired_until > NOW(), 'open', 'closed') AS desired_state,
+           GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), z.desired_until)) AS run_left_s,
            u.name AS unit_name, u.ip_address, u.last_seen,
            sc.dry_value, sc.wet_value,
            (SELECT moisture_pct FROM moisture_readings
@@ -20,7 +23,14 @@ $zones = $db->query("
     FROM zones z
     JOIN units u ON u.id = z.unit_id
     LEFT JOIN sensor_calibration sc ON sc.zone_id = z.id
+    WHERE z.id <= 15
     ORDER BY z.id
+")->fetchAll();
+
+// Zone units are online if they checked in recently (they check in every 5 s)
+$units = $db->query("
+    SELECT id, last_seen, TIMESTAMPDIFF(SECOND, last_seen, NOW()) < " . ZoneUnit::ONLINE_SEC . " AS online
+    FROM units WHERE id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
 ")->fetchAll();
 
 $temps = $db->query("
@@ -42,6 +52,7 @@ $schedules = $db->query("
 
 echo json_encode([
     'zones'     => $zones,
+    'units'     => $units,
     'temps'     => $temps,
     'schedules' => $schedules,
     'ts'        => time(),

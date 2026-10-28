@@ -2,7 +2,7 @@
 // Run every minute via crontab: * * * * * php /var/www/irrigation/backend/cron/check_schedules.php
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../src/Database.php';
-require_once __DIR__ . '/../src/Unit.php';
+require_once __DIR__ . '/../src/ZoneUnit.php';
 
 $db = Database::get();
 
@@ -54,40 +54,13 @@ foreach ($schedules as $sched) {
     // overrides the moisture skip if it is above threshold (hot day = water regardless of moisture)
     $hotOverride = ($tempC !== false && (float)$tempC >= $tempThresh);
 
-    // Open valve
+    // Ask the unit to open the valve for the run length. It applies this on its next
+    // check-in (within ~5 s) and closes the valve itself when the time is up.
     log_msg("Opening zone {$sched['zone_id']} ({$sched['zone_name']}) for {$sched['duration_sec']}s" . ($hotOverride ? ' [heat override]' : ''));
-    $result = Unit::valveCommand((int)$sched['unit_id'], (int)$sched['local_index'], true);
-
-    if ($result['success']) {
-        $db->prepare("UPDATE zones SET valve_state = 'open', last_state_change = NOW() WHERE id = ?")
-           ->execute([$sched['zone_id']]);
-        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by) VALUES (?, 'open', 'schedule', 'system')")
-           ->execute([$sched['zone_id']]);
-
-        // Schedule close — store in a pending_closes table or use a background sleep
-        // Simple approach: write a close job with a future timestamp
-        $closeAt = (new DateTime())->modify("+{$sched['duration_sec']} seconds")->format('Y-m-d H:i:s');
-        $db->prepare("INSERT INTO pending_closes (zone_id, unit_id, local_index, close_at) VALUES (?, ?, ?, ?)
-                      ON DUPLICATE KEY UPDATE close_at = VALUES(close_at)")
-           ->execute([$sched['zone_id'], $sched['unit_id'], $sched['local_index'], $closeAt]);
-    } else {
-        log_msg("ERROR opening zone {$sched['zone_id']}: " . ($result['error'] ?? 'unknown'));
+    if (!ZoneUnit::isOnline((int)$sched['unit_id'])) {
+        log_msg("WARNING zone {$sched['zone_id']}: unit {$sched['unit_id']} is offline — it will run the remaining time if it checks in before the run ends");
     }
-}
-
-// Process pending closes
-$closes = $db->query("SELECT * FROM pending_closes WHERE close_at <= NOW()")->fetchAll();
-foreach ($closes as $c) {
-    log_msg("Closing zone {$c['zone_id']} after scheduled run");
-    $result = Unit::valveCommand((int)$c['unit_id'], (int)$c['local_index'], false);
-    if ($result['success']) {
-        $db->prepare("UPDATE zones SET valve_state = 'closed', last_state_change = NOW() WHERE id = ?")
-           ->execute([$c['zone_id']]);
-        $db->prepare("INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by) VALUES (?, 'close', 'schedule', 'system')")
-           ->execute([$c['zone_id']]);
-        $db->prepare("DELETE FROM pending_closes WHERE zone_id = ?")
-           ->execute([$c['zone_id']]);
-    }
+    ZoneUnit::requestValve((int)$sched['zone_id'], true, 'schedule', 'system', (int)$sched['duration_sec']);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
