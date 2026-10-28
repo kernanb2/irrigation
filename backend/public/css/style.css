@@ -194,10 +194,29 @@ main {
   border-radius: var(--radius);
   padding: 1rem;
   transition: border-color 0.2s;
-  /* Column layout so the buttons sit at the bottom: cards in a row share a
-     height, and a card with fewer lines (no moisture sensor) still lines up */
+  /* Fallback: column layout with the buttons pushed to the bottom */
   display: flex;
   flex-direction: column;
+}
+
+/* Each card is four rows — header, info lines, buttons, dropdowns — and subgrid
+   makes each row the same height across the cards beside it. So the buttons and
+   dropdowns line up even when one card has fewer info lines (Creek Source has
+   no moisture line) or fewer dropdowns (Pond Drain has one, the filters two). */
+@supports (grid-template-rows: subgrid) {
+  /* The grid's own row gap would also open up inside every card (and stretch a
+     card with empty rows, like Unit D's), so space the rows with margins instead */
+  .zone-grid        { row-gap: 0; margin-bottom: 1rem; }   /* + the cards' 1rem = 2rem as before */
+  .zone-unit-header { margin-bottom: 1rem; }
+  .zone-card {
+    margin-bottom: 1rem;
+    display: grid;
+    grid-row: span 4;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    align-content: start;
+  }
+  .zone-actions { margin-top: 0; align-self: end; }
 }
 
 .zone-card.valve-open { border-color: var(--green); }

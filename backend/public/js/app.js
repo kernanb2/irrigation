@@ -101,8 +101,8 @@ function zoneCard(z) {
     const unitName   = 'Unit ' + String.fromCharCode(64 + parseInt(z.unit_id));
     const moist      = z.moisture_pct !== null ? parseInt(z.moisture_pct) : null;
     const moistColor = moist === null ? '' : moist > 65 ? 'moist-high' : moist > 40 ? 'moist-mid' : moist > 25 ? 'moist-low' : 'moist-dry';
-    const moistBar   = moist !== null ? `<div class="moisture-bar-wrap"><div class="moisture-bar ${moistColor}" style="width:${moist}%"></div></div>` : '';
     const hasSensor  = z.dry_value !== null;   // no calibration row = no moisture sensor on this zone
+    const moistBar   = hasSensor && moist !== null ? `<div class="moisture-bar-wrap"><div class="moisture-bar ${moistColor}" style="width:${moist}%"></div></div>` : '';
     const moistLabel = !hasSensor ? '' : moist !== null ? `Moisture: ${moist}%` : 'No sensor data';
 
     let detail = '';
@@ -123,9 +123,11 @@ function zoneCard(z) {
         </div>
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : 'Closed'}</span>
       </div>
-      ${detail ? `<div class="zone-sensors">${detail}</div>` : ''}
-      ${moistLabel ? `<div class="zone-sensors">${moistLabel}</div>` : ''}
-      ${moistBar}
+      <div class="card-info">
+        ${detail ? `<div class="zone-sensors">${detail}</div>` : ''}
+        ${moistLabel ? `<div class="zone-sensors">${moistLabel}</div>` : ''}
+        ${moistBar}
+      </div>
       <div class="zone-actions">
         <button class="btn-open"  onclick="valveCmd(${z.id}, true)"  ${!online || pending || isOpen  ? 'disabled' : ''}>Open</button>
         <button class="btn-close" onclick="valveCmd(${z.id}, false)" ${!online || pending || !isOpen ? 'disabled' : ''}>Close</button>
@@ -192,17 +194,21 @@ function drainCard(d) {
         </div>
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${badge}</span>
       </div>
-      <div class="zone-sensors">${detail}</div>
-      ${tankLine}
+      <div class="card-info">
+        <div class="zone-sensors">${detail}</div>
+        ${tankLine}
+      </div>
       <div class="zone-actions">
         <button class="btn-open"  onclick="setDrain(100)" ${busy || (pos === 100 && !got?.moving) ? 'disabled' : ''}>Open</button>
         <button class="btn-close" onclick="setDrain(0)"   ${busy || (pos === 0 && !got?.moving) ? 'disabled' : ''}>Close</button>
       </div>
-      <label class="card-field">Partial open
-        <select onchange="if (this.value) setDrain(parseInt(this.value))" ${busy ? 'disabled' : ''}>
-          <option value="">Choose…</option>${partial}
-        </select>
-      </label>
+      <div class="card-fields">
+        <label class="card-field">Partial open
+          <select onchange="if (this.value) setDrain(parseInt(this.value))" ${busy ? 'disabled' : ''}>
+            <option value="">Choose…</option>${partial}
+          </select>
+        </label>
+      </div>
     </div>`;
 }
 
@@ -262,19 +268,21 @@ function filterCard(f) {
         </div>
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : 'Closed'}</span>
       </div>
-      <div class="zone-sensors">${detail}</div>
+      <div class="card-info"><div class="zone-sensors">${detail}</div></div>
       <div class="zone-actions">
         <button class="${want.cycle_enabled ? 'btn-close' : 'btn-open'}"
           onclick="setFilterCycle(${f.filter}, { cycle_enabled: ${!want.cycle_enabled} })">
           ${want.cycle_enabled ? 'Stop flush cycle' : 'Start flush cycle'}
         </button>
       </div>
-      <label class="card-field">Flush period
-        <select onchange="setFilterCycle(${f.filter}, { flush_sec: parseInt(this.value) })">${options('seconds', want.flush_sec)}</select>
-      </label>
-      <label class="card-field">Wait time between flushes
-        <select onchange="setFilterCycle(${f.filter}, { wait_min: parseInt(this.value) })">${options('minutes', want.wait_min)}</select>
-      </label>
+      <div class="card-fields">
+        <label class="card-field">Flush period
+          <select onchange="setFilterCycle(${f.filter}, { flush_sec: parseInt(this.value) })">${options('seconds', want.flush_sec)}</select>
+        </label>
+        <label class="card-field">Wait time between flushes
+          <select onchange="setFilterCycle(${f.filter}, { wait_min: parseInt(this.value) })">${options('minutes', want.wait_min)}</select>
+        </label>
+      </div>
     </div>`;
 }
 
