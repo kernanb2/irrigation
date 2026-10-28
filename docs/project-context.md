@@ -101,7 +101,7 @@ VCC  → 3.3V
 GND  → GND
 AOUT → ADC pin (32–36)
 ```
-Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_calibration` DB table. Readings below 1000 (`ZoneUnit::MIN_SENSOR_RAW`) mean no sensor is connected: the raw value is stored but no percentage, so the card shows "No sensor data".
+Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_calibration` DB table. **A zone with no `sensor_calibration` row has no moisture sensor** (Zone 1, Creek Source): its readings aren't stored and its card shows no moisture line. Readings below 1000 (`ZoneUnit::MIN_SENSOR_RAW`) mean no sensor is connected: the raw value is stored but no percentage, so the card shows "No sensor data".
 
 ---
 
@@ -109,7 +109,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 | Zone | Unit | Local Index | Name                | Notes                          |
 |------|------|-------------|---------------------|--------------------------------|
-| 1    | A    | 0           | Creek Intake        | Special — interlock applies    |
+| 1    | A    | 0           | Creek Source        | Special — interlock applies. No moisture sensor |
 | 2–5  | A    | 1–4         | Zones 2–5           |                                |
 | 6    | B    | 0           | Pond to Pump Tank   | Special — interlock applies    |
 | 7–10 | B    | 1–4         | Zones 7–10          |                                |
@@ -120,7 +120,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | D | 4 | Placeholder on the dashboard, no hardware yet |
 | E | 5 | Pondwater pre-filter flush (2 valves) + Pond Drain (filter flush board, 192.168.1.47). Zones rows 16/17/18 exist only for event logging |
 
-**Interlock:** Creek Intake (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
+**Interlock:** Creek Source (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
 
 ---
 

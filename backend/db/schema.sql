@@ -59,12 +59,12 @@ CREATE TABLE zones (
 );
 
 INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
-(1,  1, 0, 'Creek Intake',      TRUE,  'Opens creek water supply — check pond level before activating'),
+(1,  1, 0, 'Creek Source',      TRUE,  'Opens creek water supply — check pond level before activating'),
 (2,  1, 1, 'Zone 2',            FALSE, NULL),
 (3,  1, 2, 'Zone 3',            FALSE, NULL),
 (4,  1, 3, 'Zone 4',            FALSE, NULL),
 (5,  1, 4, 'Zone 5',            FALSE, NULL),
-(6,  2, 0, 'Pond to Pump Tank', TRUE,  'Fills pump tank from pond — interlock: cannot open with creek intake'),
+(6,  2, 0, 'Pond to Pump Tank', TRUE,  'Fills pump tank from pond — interlock: cannot open with Creek Source'),
 (7,  2, 1, 'Zone 7',            FALSE, NULL),
 (8,  2, 2, 'Zone 8',            FALSE, NULL),
 (9,  2, 3, 'Zone 9',            FALSE, NULL),
@@ -147,8 +147,9 @@ CREATE TABLE sensor_calibration (
     FOREIGN KEY (zone_id) REFERENCES zones(id)
 );
 
+-- A zone without a row here has no moisture sensor (zone 1, Creek Source)
 INSERT INTO sensor_calibration (zone_id, dry_value, wet_value)
-SELECT id, 3300, 1300 FROM zones WHERE id <= 15;
+SELECT id, 3300, 1300 FROM zones WHERE id BETWEEN 2 AND 15;
 
 -- ── System settings ───────────────────────────────────────────────────────────
 CREATE TABLE settings (

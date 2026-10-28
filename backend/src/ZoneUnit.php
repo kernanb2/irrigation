@@ -164,10 +164,10 @@ class ZoneUnit {
             if (!is_numeric($raw)) continue;
             $zoneStmt->execute([$unitId, $i]);
             $z = $zoneStmt->fetch();
-            if (!$z) continue;
+            if (!$z || $z['dry_value'] === null) continue;   // no calibration row = zone has no sensor
 
             $pct = null;
-            if ($raw >= self::MIN_SENSOR_RAW && $z['dry_value'] !== null && $z['dry_value'] != $z['wet_value']) {
+            if ($raw >= self::MIN_SENSOR_RAW && $z['dry_value'] != $z['wet_value']) {
                 $pct = (int)round(($z['dry_value'] - $raw) / ($z['dry_value'] - $z['wet_value']) * 100);
                 $pct = max(0, min(100, $pct));
             }

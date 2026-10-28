@@ -102,7 +102,8 @@ function zoneCard(z) {
     const moist      = z.moisture_pct !== null ? parseInt(z.moisture_pct) : null;
     const moistColor = moist === null ? '' : moist > 65 ? 'moist-high' : moist > 40 ? 'moist-mid' : moist > 25 ? 'moist-low' : 'moist-dry';
     const moistBar   = moist !== null ? `<div class="moisture-bar-wrap"><div class="moisture-bar ${moistColor}" style="width:${moist}%"></div></div>` : '';
-    const moistLabel = moist !== null ? `Moisture: ${moist}%` : 'No sensor data';
+    const hasSensor  = z.dry_value !== null;   // no calibration row = no moisture sensor on this zone
+    const moistLabel = !hasSensor ? '' : moist !== null ? `Moisture: ${moist}%` : 'No sensor data';
 
     let detail = '';
     if (!online) {
@@ -123,7 +124,7 @@ function zoneCard(z) {
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${isOpen ? 'Open' : 'Closed'}</span>
       </div>
       ${detail ? `<div class="zone-sensors">${detail}</div>` : ''}
-      <div class="zone-sensors">${moistLabel}</div>
+      ${moistLabel ? `<div class="zone-sensors">${moistLabel}</div>` : ''}
       ${moistBar}
       <div class="zone-actions">
         <button class="btn-open"  onclick="valveCmd(${z.id}, true)"  ${!online || pending || isOpen  ? 'disabled' : ''}>Open</button>
