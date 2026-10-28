@@ -59,6 +59,18 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 #define DRAIN_END_MARGIN_MS 2000  // extra drive at 0%/100% so it always reaches the end stop
 #define DRAIN_INDEX       2       // device number 3 in events (filters are 0 and 1)
 
+// ── Tank level sensors ────────────────────────────────────────────────────────
+// Two XKC-Y25 non-contact sensors on the tank the drain fills (the controller's own
+// two sensors run the irrigation pump). Top sensor wet → drain closes; once the water
+// drops below the second sensor, the drain goes back to the last web-page setting.
+// Each sensor: brown → 5V, blue → GND, black (mode) set so yellow is HIGH when DRY,
+// yellow → 10k → GPIO, with 15k from GPIO to GND (5 V → 3.0 V).
+// A broken wire or dead sensor reads LOW = wet, so it can only keep the drain closed.
+#define TANK_SENSORS      1       // 0 = sensors not wired, ignore them
+#define TANK_TOP_PIN      34      // input-only pins — the 15k resistor is the pull-down
+#define TANK_REFILL_PIN   35
+#define TANK_DEBOUNCE_MS  5000    // a reading must hold this long (ripples, splashing)
+
 // ── Global state ──────────────────────────────────────────────────────────────
 WebServer       server(80);
 Preferences     prefs;
@@ -87,7 +99,20 @@ struct Drain {
     unsigned long moveEndMs;
     uint32_t      appliedSeq;     // last web command applied (kept across reboots)
     uint8_t       pendingReason;
+    uint8_t       userPct;        // last web-page setting — where to return after the tank empties
 } drain;
+
+struct LevelSensor {
+    uint8_t       pin;
+    bool          wet;            // debounced
+    bool          rawWet;
+    unsigned long rawSinceMs;
+};
+struct Tank {
+    LevelSensor   top    = {TANK_TOP_PIN,    false, false, 0};
+    LevelSensor   refill = {TANK_REFILL_PIN, false, false, 0};
+    bool          full   = false;  // drain held closed until the water drops below the refill sensor
+} tank;
 
 unsigned long   lastReportMs  = 0;
 
@@ -95,8 +120,9 @@ unsigned long   lastReportMs  = 0;
 // Every open/close is queued and sent with the next report, so flushes shorter
 // than the report interval still reach the event log. seq starts at 1 each boot;
 // the server uses boot_id + seq to skip events it already stored.
-enum Reason : uint8_t { REASON_CYCLE, REASON_STOP, REASON_MANUAL, REASON_WEB, REASON_RESTART };
-const char* REASON_NAME[] = {"cycle", "stop", "manual", "web", "restart"};
+enum Reason : uint8_t { REASON_CYCLE, REASON_STOP, REASON_MANUAL, REASON_WEB, REASON_RESTART,
+                       REASON_TANK_FULL, REASON_TANK_LOW };
+const char* REASON_NAME[] = {"cycle", "stop", "manual", "web", "restart", "tank_full", "tank_low"};
 
 struct ValveEvent {
     uint32_t      seq;
@@ -231,6 +257,47 @@ void runDrain() {
     }
 }
 
+// New setting from the web page. While the tank is full it's remembered and
+// applied once the water drops below the refill sensor.
+void webDrainTarget(uint8_t pct) {
+    drain.userPct = pct;
+    if (tank.full && pct > 0) {
+        Serial.printf("Drain %d%% requested — waiting for the tank to drop\n", pct);
+        return;
+    }
+    setDrainTarget(pct, REASON_WEB);
+}
+
+// ── Tank level ────────────────────────────────────────────────────────────────
+void readLevel(LevelSensor& s, unsigned long now) {
+    bool wet = digitalRead(s.pin) == LOW;    // HIGH = dry
+    if (wet != s.rawWet) { s.rawWet = wet; s.rawSinceMs = now; }
+    if (s.wet != s.rawWet && now - s.rawSinceMs >= TANK_DEBOUNCE_MS) {
+        s.wet = s.rawWet;
+        Serial.printf("Tank sensor GPIO %d: %s\n", s.pin, s.wet ? "water" : "dry");
+    }
+}
+
+// Top wet but refill dry can't happen with working sensors — treat it as full
+bool tankFault() { return tank.top.wet && !tank.refill.wet; }
+
+void runTank() {
+    if (!TANK_SENSORS) return;
+    unsigned long now = millis();
+    readLevel(tank.top, now);
+    readLevel(tank.refill, now);
+
+    if (!tank.full && tank.top.wet) {
+        tank.full = true;
+        Serial.println(tankFault() ? "Tank sensor fault — drain held closed" : "Tank full — drain closing");
+        if (drain.targetPct > 0) setDrainTarget(0, REASON_TANK_FULL);
+    } else if (tank.full && !tank.top.wet && !tank.refill.wet) {
+        tank.full = false;
+        Serial.printf("Tank below refill sensor — drain back to %d%%\n", drain.userPct);
+        if (drain.userPct > 0) setDrainTarget(drain.userPct, REASON_TANK_LOW);
+    }
+}
+
 // ── Automatic flush cycle ─────────────────────────────────────────────────────
 bool validCycleValue(int v) {
     return v >= CYCLE_MIN && v <= CYCLE_MAX && v % 10 == 0;
@@ -326,6 +393,14 @@ void fillStatus(JsonDocument& doc) {
     d["target_pct"]   = drain.targetPct;
     d["moving"]       = drain.moving || drain.movePending;
     d["seq"]          = drain.appliedSeq;
+    d["user_pct"]     = drain.userPct;
+    if (TANK_SENSORS) {
+        JsonObject t = d["tank"].to<JsonObject>();
+        t["top_wet"]    = tank.top.wet;
+        t["refill_wet"] = tank.refill.wet;
+        t["full"]       = tank.full;
+        t["fault"]      = tankFault();
+    }
 
     doc["uptime_s"] = now / 1000;
     doc["ip"]       = WiFi.localIP().toString();
@@ -376,7 +451,7 @@ void reportToServer() {
             if (seq != drain.appliedSeq && pct >= 0 && pct <= 100) {
                 drain.appliedSeq = seq;
                 saveDrain();
-                setDrainTarget(pct, REASON_WEB);
+                webDrainTarget(pct);
             }
         } else {
             Serial.println("Server reply not understood");
@@ -465,6 +540,8 @@ void setup() {
     pinMode(DRAIN_BK_PIN, OUTPUT);
     setDrainDrive(DRIVE_CLOSE);   // both relays off — drain drives closed
     pinMode(LED_BUILTIN_PIN, OUTPUT);
+    pinMode(TANK_TOP_PIN, INPUT);
+    pinMode(TANK_REFILL_PIN, INPUT);
 
     Serial.begin(115200);
     bootId = esp_random();
@@ -490,6 +567,16 @@ void setup() {
     }
     Serial.printf("Drain was at %d%% — closing\n", savedPos);
 
+    // Start from the current tank readings rather than waiting out the debounce
+    if (TANK_SENSORS) {
+        for (LevelSensor* s : {&tank.top, &tank.refill}) {
+            s->wet = s->rawWet = digitalRead(s->pin) == LOW;
+            s->rawSinceMs = millis();
+        }
+        tank.full = tank.top.wet;
+        Serial.printf("Tank: top %s, refill %s\n", tank.top.wet ? "water" : "dry", tank.refill.wet ? "water" : "dry");
+    }
+
     connectWiFi();
 
     server.on("/status", HTTP_GET,  handleStatus);
@@ -501,6 +588,7 @@ void setup() {
 void loop() {
     server.handleClient();
     runCycles();
+    runTank();
     runDrain();
 
     bool online = WiFi.status() == WL_CONNECTED;

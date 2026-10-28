@@ -58,6 +58,13 @@ if (is_array($body['drain'] ?? null)) {
         'target_pct'   => max(0, min(100, (int)($d['target_pct'] ?? 0))),
         'moving'       => (bool)($d['moving'] ?? false),
         'seq'          => (int)($d['seq'] ?? 0),
+        'user_pct'     => max(0, min(100, (int)($d['user_pct'] ?? 0))),
+        'tank'         => is_array($d['tank'] ?? null) ? [
+            'top_wet'    => (bool)($d['tank']['top_wet'] ?? false),
+            'refill_wet' => (bool)($d['tank']['refill_wet'] ?? false),
+            'full'       => (bool)($d['tank']['full'] ?? false),
+            'fault'      => (bool)($d['tank']['fault'] ?? false),
+        ] : null,
     ];
     $drainState = $drain['position_pct'] > 0 || $drain['moving'] ? 'open' : 'closed';
     $stateStmt->execute([$drainState, $drainState, PondDrain::ZONE_ID]);

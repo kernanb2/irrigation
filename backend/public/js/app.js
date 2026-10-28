@@ -150,6 +150,16 @@ function drainCard(d) {
     } else {
         detail = pos === 0 ? 'Closed' : pos === 100 ? 'Fully open' : `Partly open — ${pos}%`;
     }
+    const tank = online && got?.tank;
+    if (tank?.full && !got.moving) {
+        const back = got.user_pct === 100 ? 'fully open' : got.user_pct + '% open';
+        detail = tank.fault
+            ? 'Closed — tank sensor fault (top sensor wet, refill sensor dry)'
+            : 'Closed — tank full' + (got.user_pct > 0 ? `, back to ${back} when it drops below the refill sensor` : '');
+    }
+    const tankLine = tank
+        ? `<div class="zone-sensors">Tank: ${tank.top_wet ? 'at top sensor' : tank.refill_wet ? 'between sensors' : 'below refill sensor'}</div>`
+        : '';
     badge = !isOpen ? 'Closed' : pos === 100 && !got.moving ? 'Open' : `${pos}%`;
 
     const partial = Array.from({ length: 9 }, (_, i) => (i + 1) * 10)
@@ -166,6 +176,7 @@ function drainCard(d) {
         <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${badge}</span>
       </div>
       <div class="zone-sensors">${detail}</div>
+      ${tankLine}
       <div class="zone-actions">
         <button class="btn-open"  onclick="setDrain(100)" ${busy || (pos === 100 && !got?.moving) ? 'disabled' : ''}>Open</button>
         <button class="btn-close" onclick="setDrain(0)"   ${busy || (pos === 0 && !got?.moving) ? 'disabled' : ''}>Close</button>

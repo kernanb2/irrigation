@@ -78,7 +78,9 @@ class FilterFlush {
             'stop'    => 'cycle stopped',
             'manual'  => 'local LAN command',
             'web'     => 'web page',
-            'restart' => 'closed after restart',
+            'restart'   => 'closed after restart',
+            'tank_full' => 'tank full',
+            'tank_low'  => 'tank below refill sensor',
         ];
         $insert = $db->prepare("
             INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by, executed_at, notes)
@@ -99,7 +101,7 @@ class FilterFlush {
             $insert->execute([
                 self::EVENT_ZONE_IDS[$n],
                 ($ev['action'] ?? '') === 'open' ? 'open' : 'close',
-                $reason === 'cycle' ? 'schedule' : 'manual',
+                in_array($reason, ['cycle', 'tank_full', 'tank_low'], true) ? 'schedule' : 'manual',
                 max(0, (int)($ev['ago_s'] ?? 0)),
                 $note,
             ]);

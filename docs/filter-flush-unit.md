@@ -8,7 +8,7 @@ A second ESP32 that controls three motorized ball valves: two flush (clean) the 
 | 2 | Pondwater Pre-filter-2 | U.S. Solid ½" | Relay 2 | 27 |
 | 3 | Pond Drain             | BOKYWOX 2"    | Relays 3 + 4 | 25 + 33 |
 
-Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
+Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). Two level sensors on the tank the drain fills close it when the tank is full and reopen it when the level drops (see **Tank Level Sensors**). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
 ---
 
@@ -23,6 +23,8 @@ Each filter has its own independent flush cycle. The Pond Drain opens, closes, o
 | 2-relay module, Songle **SRD-05VDC-SL-C** ×2 | Module 1: relays 1–2 (filters). Module 2: relays 3–4 (Pond Drain). 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
 | LM2596 buck converter (Amazon FNSKU X004ZQRESH) | 12V → 5V for the ESP32 and relay coils |
 | Blade fuses + inline holders | See fusing below |
+| 2 non-contact level sensors (Taidacent **XKC-Y25-V**, 4-wire) | The spare two of the four on the tank. The other two stay on the XKC-C352 controller, which runs the irrigation pump and powers its sensors at 12V. The sensor works on 5–24V, and Unit E powers its two from the 5V rail so the signal can never exceed 5V. Brown +, blue −, yellow signal, black output-mode select. Don't connect Unit E's sensors to the controller's terminals: its 0V isn't Unit E's GND. |
+| Resistors: 2 × 10kΩ, 2 × 15kΩ | Voltage dividers for the sensor signals (5V → 3.0V) |
 
 ---
 
@@ -173,6 +175,30 @@ GND ─────────── NO ┘           +12V (F4) ── NO ┘
 
 Like the filter valves, the drain needs the 12V supply to close. If the 12V supply itself dies, the drain stays where it was.
 
+### Tank Level Sensors → ESP32
+
+The tank the Pond Drain fills has four sensors. The XKC-C352 controller uses two of them to run the irrigation pump (on when full, off at its low mark). Unit E uses the **top** sensor and **the one below it**, so the tank starts refilling before the pump stops.
+
+| Sensor wire | Connect to |
+|-------------|------------|
+| Brown (+) | 5V rail |
+| Blue (−) | GND rail |
+| Black (mode) | Brown **or** blue, whichever makes yellow **HIGH when dry** (see test below) |
+| Yellow (signal) | 10kΩ → GPIO (34 top, 35 refill), with 15kΩ from that GPIO to GND |
+
+```
+sensor yellow ──[10k]──┬── GPIO 34 (top) / GPIO 35 (refill)
+                       └──[15k]── GND
+```
+
+The divider turns the sensor's 5V into 3.0V for the ESP32. GPIO 34 and 35 are input-only and have no internal pull resistors, so the 15k is also the pull-down.
+
+**Test each sensor before connecting it to the ESP32:** power it from the 5V rail and measure yellow to blue with the meter. With the sensor dry it should read about 5V; with water behind it (on the tank, or held against a full jug) about 0V. If it's the other way round, move the black wire from brown to blue (or blue to brown).
+
+Why "HIGH = dry": a broken wire, unplugged sensor, or dead sensor reads LOW, which counts as **water present**. A failed top sensor then keeps the drain closed instead of letting the tank overflow.
+
+Keep the sensor wires away from the controller's mains wiring. On a long run, a 0.1µF capacitor from each GPIO to GND helps against noise.
+
 ### ESP32 Power
 
 ```
@@ -214,6 +240,8 @@ To stay well inside 3A, the **firmware never starts the drain while a filter val
 | 27 | Relay 2 IN (filter 2 valve) | Active LOW. LOW = OPEN, HIGH = CLOSED |
 | 25 | Relay 3 IN (Pond Drain red) | Active LOW. See the relay table above |
 | 33 | Relay 4 IN (Pond Drain black) | Active LOW. See the relay table above |
+| 34 | Tank top sensor | Input only. HIGH = dry, LOW = water |
+| 35 | Tank refill sensor (second from top) | Input only. HIGH = dry, LOW = water |
 
 GPIOs 25/26/27/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves stay closed and the drain drives closed.
 
@@ -265,6 +293,20 @@ Keep in mind that a ball valve's flow isn't proportional to how far it's open: 3
 
 **Calibrate the travel time:** from fully closed, press Open and time it until the valve's position indicator stops. If it isn't about 11 s, change `DRAIN_TRAVEL_MS` in the sketch and reflash.
 
+### Tank Level Control
+
+The board checks the two tank sensors itself, so this works even if WiFi or the server is down. Each reading must hold steady for 5 s before it counts (ripples and splashing).
+
+- **Top sensor sees water** → the drain closes ("tank full" in the event log).
+- **Water drops below the refill sensor** → the drain goes back to the **last setting from the web page** (Open, or 30%, etc.) and logs "tank below refill sensor". If the last setting was Close, it stays closed.
+- **Between the two sensors** the drain stays as it is: closed if it was closed because the tank filled, otherwise open.
+- **Pressing Open while the tank is full** doesn't open it now. The card shows "Closed — tank full, back to 30% open when it drops below the refill sensor", and it opens when the level drops.
+- **Sensor fault:** top sensor wet but refill sensor dry can't happen with working sensors, so the drain is held closed and the card shows "tank sensor fault".
+
+The card also shows the tank level: at top sensor / between sensors / below refill sensor.
+
+If the sensors aren't connected yet, set `TANK_SENSORS` to `0` in the sketch. Otherwise the unconnected GPIO 34/35 float and the readings are random.
+
 **After a restart or power loss the drain closes and stays closed**, even if it was open. A web command is applied only once: the server keeps a command counter (`drain_cmd_seq`), and the board saves the last one it applied in flash, so a reboot never replays an old "open". The board also saves its last position. If it was open when it restarted, it logs "closed after restart" in the event log.
 
 ### Talking to the Server
@@ -293,6 +335,8 @@ Every valve open and close appears in **Recent Valve Events** on the dashboard, 
 | local LAN command | `/flush` or `/close` was called directly on the board |
 | web page — 30% open | Pond Drain moved from the web page (the % is shown for partial positions) |
 | closed after restart | Pond Drain was open when the board restarted, so it closed |
+| tank full | The tank's top sensor saw water, so the Pond Drain closed |
+| tank below refill sensor | The tank dropped below the refill sensor, so the Pond Drain went back to its web-page setting |
 
 The board queues each open/close (up to 32) and sends them with its next report. Flushes are logged even if a check-in fails, and events from a WiFi outage are sent when it reconnects. The time shown is when the valve actually moved. Each event has a sequence number, so a report that's sent twice doesn't create duplicates.
 
@@ -331,4 +375,5 @@ The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps manu
 ## Not Yet Done
 
 - Pond Drain hardware: second 2-relay module (on order), F4 fuse, F1 → 3A, bench test, and timing a full open to calibrate `DRAIN_TRAVEL_MS`. Firmware and web card are done.
+- Tank level sensors: test each sensor's output, wire the dividers to GPIO 34/35, and check the card shows the right tank level.
 - Flushing when the filter's pressure drop gets too high (would need a pressure sensor).
