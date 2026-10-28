@@ -28,7 +28,7 @@ OUT1          Solenoid wire 1 (18 AWG)
 OUT2          Solenoid wire 2 (18 AWG)
 ```
 
-**Flyback protection:** Wire a 1N4007 diode across OUT1–OUT2 on each DRV8871 (cathode toward OUT1 when opening, anode toward OUT2). Place as close to the solenoid terminals as possible.
+**No flyback diode.** The latching solenoids are driven in both directions (open = OUT1 +, close = OUT2 +), so a plain diode such as a 1N4007 across OUT1–OUT2 shorts one of the two pulses whichever way it faces. The DRV8871's H-bridge absorbs the solenoid's kickback itself. For extra protection, use a **bidirectional** TVS diode (e.g. P6KE15CA) across the solenoid, close to its terminals.
 
 **Decoupling capacitor:** Place a 100µF electrolytic capacitor across VM and GND on each DRV8871 to suppress voltage spikes.
 

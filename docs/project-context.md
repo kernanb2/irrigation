@@ -52,7 +52,7 @@ DRV8871 IN2  → ESP32 GPIO (see pin map)
 DRV8871 OUT1 → Solenoid wire 1
 DRV8871 OUT2 → Solenoid wire 2
 ```
-- **Flyback diode:** 1N4007 across OUT1–OUT2, cathode toward OUT1, close to solenoid terminals
+- **No flyback diode:** the solenoid is pulsed both ways, so a 1N4007 across OUT1–OUT2 shorts one direction (found 2026-10-28). The DRV8871 handles kickback internally; optional bidirectional TVS (P6KE15CA) across the solenoid
 - **Decoupling cap:** 100µF electrolytic across VM and GND on each DRV8871
 
 ### Solenoids
@@ -148,7 +148,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 ## Build Status (2026-06-10)
 
-- **Unit A:** IP 192.168.1.45. **2026-10-28:** switched to server polling (`/api/unit_report.php`) with a new key; being reflashed with the repo sketch
+- **Unit A:** IP 192.168.1.45. **2026-10-28:** switched to server polling (`/api/unit_report.php`) with a new key; reflashed with the repo sketch and online
 - **Units B & C:** not yet built
 - **First valve bench test in progress:**
   - Zone 1 (GPIO 4 IN1, GPIO 5 IN2) → DRV8871 → Rainbird latching solenoid
@@ -156,9 +156,8 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
   - LM2596 set to 5.0V → ESP32 VIN
   - Common GND: 9V battery −, LM2596 OUT−, ESP32 GND all tied together
   - 8µF cap across DRV8871 VM and GND (temporary — 100µF caps on order)
-  - 1N4007 diode across OUT1–OUT2
-- **Bug found:** diode wired backwards — banded end (cathode) must face OUT1, currently reversed, clamping output to ~1.1V instead of 9V
-- **Next step:** reverse the 1N4007 diode, confirm solenoid clicks
+  - 1N4007 diode across OUT1–OUT2 — **remove it** (2026-10-28): in either orientation it shorts one pulse direction. Facing one way it clamped the open pulse to ~1.1V; reversed, it clamps the close pulse instead
+- **2026-10-28:** diode removed, loose ground reconnected to common GND (DRV8871 input-side GND). Zone 1 opens and closes from the web page within 2–4 s (5 s check-in interval); events logged under the user
 
 ## Unit E — Pre-filter Flush + Pond Drain (ESP32 #2)
 
