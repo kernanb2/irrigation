@@ -35,6 +35,11 @@ Each ESP-32 sends its own key. A key only works for the unit it's assigned to.
 php /var/www/irrigation/backend/db/create_user.php admin yourpassword
 ```
 
+Forgot a password? It can't be looked up (only a hash is stored); set a new one:
+```
+php backend/db/reset_password.php admin
+```
+
 ### 5. Configure Apache
 ```bash
 cp /var/www/irrigation/backend/apache/irrigation.conf /etc/apache2/sites-available/
@@ -77,7 +82,8 @@ backend/
 ├── cron/check_schedules.php  Starts scheduled runs (run every minute); units close valves on their own timers
 ├── db/
 │   ├── schema.sql            Full database schema
-│   └── create_user.php       CLI tool to create login accounts
+│   ├── create_user.php       CLI tool to create login accounts
+│   └── reset_password.php    CLI tool to set a new password (prompts, no echo)
 ├── public/                   Apache document root
 │   ├── index.php             Dashboard
 │   ├── login.php / logout.php

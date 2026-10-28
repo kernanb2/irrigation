@@ -194,6 +194,10 @@ main {
   border-radius: var(--radius);
   padding: 1rem;
   transition: border-color 0.2s;
+  /* Column layout so the buttons sit at the bottom: cards in a row share a
+     height, and a card with fewer lines (no moisture sensor) still lines up */
+  display: flex;
+  flex-direction: column;
 }
 
 .zone-card.valve-open { border-color: var(--green); }
@@ -249,6 +253,7 @@ main {
 .zone-actions {
   display: flex;
   gap: 0.5rem;
+  margin-top: auto;
 }
 
 .btn-open, .btn-close {
