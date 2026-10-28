@@ -111,7 +111,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 |------|------|-------------|---------------------|--------------------------------|
 | 1    | A    | 0           | Creek Source        | Special — interlock applies. No moisture sensor |
 | 2–5  | A    | 1–4         | Zones 2–5           |                                |
-| 6    | B    | 0           | Pond to Pump Tank   | Special — interlock applies    |
+| 6    | B    | 0           | Zone 6              | Regular zone (was Pond to Pump Tank, special, until 2026-10-28) |
 | 7–10 | B    | 1–4         | Zones 7–10          |                                |
 | 11–15| C    | 0–4         | Zones 11–15         |                                |
 
@@ -120,7 +120,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | D | 4 | Placeholder on the dashboard, no hardware yet |
 | E | 5 | Pondwater pre-filter flush (2 valves) + Pond Drain (filter flush board, 192.168.1.47). Zones rows 16/17/18 exist only for event logging |
 
-**Interlock:** Creek Source (Zone 1) and Pond to Pump Tank (Zone 6) cannot both be open simultaneously. Enforced in `backend/public/api/valve.php`.
+**Interlock:** no two special zones may be open at once (enforced in `backend/public/api/valve.php`, setting `creek_pond_interlock`). It used to pair Creek Source (Zone 1) with Pond to Pump Tank (Zone 6); since 2026-10-28 Zone 6 is a regular zone, so Creek Source is the only special zone and the interlock has nothing to block.
 
 ---
 

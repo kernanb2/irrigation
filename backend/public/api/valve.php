@@ -40,7 +40,8 @@ if (!ZoneUnit::isOnline((int)$z['unit_id'])) {
     exit;
 }
 
-// Interlock: creek (zone 1) and pond (zone 6) cannot both be open (or about to open)
+// Interlock: no two special zones open at once (or about to open). Since zone 6
+// became a regular zone, Creek Source (zone 1) is the only special zone.
 if ($open && $z['is_special']) {
     $setting = $db->query("SELECT value FROM settings WHERE key_name = 'creek_pond_interlock'")->fetchColumn();
     if ($setting === 'true') {

@@ -64,7 +64,7 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (3,  1, 2, 'Zone 3',            FALSE, NULL),
 (4,  1, 3, 'Zone 4',            FALSE, NULL),
 (5,  1, 4, 'Zone 5',            FALSE, NULL),
-(6,  2, 0, 'Pond to Pump Tank', TRUE,  'Fills pump tank from pond — interlock: cannot open with Creek Source'),
+(6,  2, 0, 'Zone 6',            FALSE, NULL),
 (7,  2, 1, 'Zone 7',            FALSE, NULL),
 (8,  2, 2, 'Zone 8',            FALSE, NULL),
 (9,  2, 3, 'Zone 9',            FALSE, NULL),

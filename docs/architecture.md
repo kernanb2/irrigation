@@ -85,4 +85,4 @@ Each unit is identical in hardware design.
 ## Special Zones
 
 - **Creek intake valve (Zone 1, Unit A):** Opens creek water supply. Should only activate when downstream zones require water and pond level is adequate.
-- **Pond → pump tank valve (Zone 6, Unit B):** Fills pump/holding tank from pond. Interlock logic should prevent this and creek valve from being open simultaneously.
+- **Zone 6 (Unit B):** originally planned as the pond → pump tank valve, interlocked with the creek valve. Since 2026-10-28 it's a regular watering zone.
