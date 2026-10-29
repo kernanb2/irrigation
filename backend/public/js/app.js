@@ -53,6 +53,10 @@ async function fetchAll() {
             drainFollowTimer = setTimeout(() => { drainFollowTimer = null; fetchAll(); }, 2000);
         }
 
+        // Show the saved Auto Mode setting (not while a change is being saved)
+        const auto = document.getElementById('autoToggle');
+        if (!auto.disabled) auto.checked = !!status.auto_mode;
+
         renderUnitPills();
         renderZones();
         renderExtraUnits();
@@ -423,11 +427,27 @@ function renderEvents(events) {
 
 // ── Auto mode toggle ──────────────────────────────────────────────────────────
 async function toggleAutoMode(e) {
-    await apiFetch('/api/settings.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'auto_mode_enabled', value: e.target.checked ? 'true' : 'false' }),
-    });
+    const toggle = e.target;
+    toggle.disabled = true;
+    try {
+        const res  = await apiFetch('/api/settings.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'auto_mode_enabled', value: toggle.checked ? 'true' : 'false' }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            toggle.checked = !toggle.checked;
+            alert('Error: ' + (data.error || 'Could not save Auto Mode'));
+        }
+    } catch (err) {
+        if (err.message !== 'session_expired') {
+            toggle.checked = !toggle.checked;
+            alert('Network error — Auto Mode not changed.');
+        }
+    } finally {
+        toggle.disabled = false;
+    }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -50,7 +50,10 @@ $schedules = $db->query("
     ORDER BY s.zone_id
 ")->fetchAll();
 
+$autoMode = $db->query("SELECT value FROM settings WHERE key_name = 'auto_mode_enabled'")->fetchColumn() === 'true';
+
 echo json_encode([
+    'auto_mode' => $autoMode,
     'zones'     => $zones,
     'units'     => $units,
     'temps'     => $temps,
