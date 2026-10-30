@@ -66,7 +66,7 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 // Each sensor: brown → 5V, blue → GND, black (mode) set so yellow is HIGH when DRY,
 // yellow → 10k → GPIO, with 15k from GPIO to GND (5 V → 3.0 V).
 // A broken wire or dead sensor reads LOW = wet, so it can only keep the drain closed.
-#define TANK_SENSORS      1       // 0 = sensors not wired, ignore them
+#define TANK_SENSORS      0       // 0 = sensors not wired, ignore them
 #define TANK_TOP_PIN      34      // input-only pins — the 15k resistor is the pull-down
 #define TANK_REFILL_PIN   35
 #define TANK_DEBOUNCE_MS  5000    // a reading must hold this long (ripples, splashing)
@@ -165,6 +165,15 @@ void setValve(uint8_t f, bool open, Reason reason) {
     if (!open) fl.nextFlushMs = millis() + fl.waitMin * 60000UL;   // also covers a manual /close
     queueEvent(f, open, reason);
     Serial.printf("Filter %d valve %s (%s)\n", f + 1, open ? "OPEN" : "CLOSED", REASON_NAME[reason]);
+}
+
+// Only one pre-filter flushes at a time: a flush that comes due while the other
+// valve is open waits and starts as soon as that one closes.
+bool otherFilterOpen(uint8_t f) {
+    for (uint8_t o = 0; o < NUM_FILTERS; o++) {
+        if (o != f && filters[o].valveOpen) return true;
+    }
+    return false;
 }
 
 void startFlush(uint8_t f, uint32_t seconds, Reason reason) {
@@ -357,7 +366,8 @@ void runCycles() {
         if (fl.valveOpen && (long)(now - fl.flushEndMs) >= 0) {
             setValve(f, false, fl.cycleEnabled ? REASON_CYCLE : REASON_MANUAL);
         }
-        if (fl.cycleEnabled && !fl.valveOpen && !drain.moving && (long)(now - fl.nextFlushMs) >= 0) {
+        if (fl.cycleEnabled && !fl.valveOpen && !drain.moving && !otherFilterOpen(f)
+            && (long)(now - fl.nextFlushMs) >= 0) {
             startFlush(f, fl.flushSec, REASON_CYCLE);
         }
     }
@@ -384,6 +394,7 @@ void fillStatus(JsonDocument& doc) {
         if (fl.cycleEnabled && !fl.valveOpen) {
             long next = (long)(fl.nextFlushMs - now) / 1000;
             o["next_flush_in_s"] = next < 0 ? 0 : next;
+            o["waiting"]         = next <= 0 && otherFilterOpen(f);
         } else {
             o["next_flush_in_s"] = nullptr;
         }
@@ -488,6 +499,10 @@ void handleFlush() {
     }
     if (drain.moving) {
         server.send(200, "application/json", "{\"ok\":false,\"error\":\"Pond Drain is moving — try again shortly\"}");
+        return;
+    }
+    if (otherFilterOpen(f)) {
+        server.send(200, "application/json", "{\"ok\":false,\"error\":\"The other pre-filter is flushing — try again when it closes\"}");
         return;
     }
     startFlush(f, seconds, REASON_MANUAL);

@@ -254,6 +254,8 @@ function filterCard(f) {
         detail = 'Sending to Unit E…';
     } else if (isOpen) {
         detail = `Flushing — ${got.flush_remaining_s}s left`;
+    } else if (got.cycle_enabled && got.waiting) {
+        detail = 'Waiting — flushes when the other pre-filter closes';
     } else if (got.cycle_enabled) {
         detail = `Cycle running — next flush in ${formatDuration(got.next_flush_in_s ?? 0)}`;
     } else {

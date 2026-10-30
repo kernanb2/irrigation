@@ -45,6 +45,7 @@ foreach (FilterFlush::ZONE_IDS as $n => $zoneId) {
         'flush_sec'         => (int)($f['flush_sec'] ?? 0),
         'wait_min'          => (int)($f['wait_min'] ?? 0),
         'next_flush_in_s'   => isset($f['next_flush_in_s']) ? (int)$f['next_flush_in_s'] : null,
+        'waiting'           => (bool)($f['waiting'] ?? false),   // due, but the other valve is flushing
     ];
     $stateStmt->execute([$valve, $valve, $zoneId]);
 }

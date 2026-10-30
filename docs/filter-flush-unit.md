@@ -274,7 +274,7 @@ On the dashboard, Unit E has two cards, **Pondwater Pre-filter** and **Pondwater
 How the cycle behaves:
 - **Start:** flushes right away, then repeats: open for the flush period, wait, flush again.
 - **Stop:** closes the valve immediately (even mid-flush) and stops the cycle.
-- The two cycles are independent, so both valves can flush at the same time.
+- The two cycles have their own settings, but only one valve flushes at a time. If a flush comes due while the other valve is open (for example, Start pressed on both cards), it waits and starts as soon as the other valve closes; the card shows "Waiting — flushes when the other pre-filter closes". A manual `/flush` is refused while the other valve is open.
 - **Changing the wait time while running:** the next flush is rescheduled from the end of the last one. If that time has already passed, it flushes right away.
 - The **ESP32 runs the timer itself** and saves the settings in flash. The cycle keeps going if WiFi or the server goes down, and resumes after a reboot. After a reboot, the first flush comes one wait period later.
 
