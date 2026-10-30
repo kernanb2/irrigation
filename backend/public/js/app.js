@@ -414,10 +414,10 @@ async function deleteSchedule(id) {
 function renderEvents(events) {
     const tbody = document.querySelector('#eventsTable tbody');
     if (!events.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">No events</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">No events in the last 48 hours</td></tr>';
         return;
     }
-    tbody.innerHTML = events.slice(0, 50).map(ev => `
+    tbody.innerHTML = events.map(ev => `
         <tr>
           <td>${new Date(ev.executed_at).toLocaleString()}</td>
           <td>${ev.zone_id > 15 ? '' : `Zone ${ev.zone_id} — `}${escHtml(ev.zone_name)}</td>

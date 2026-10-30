@@ -9,8 +9,9 @@ header('Content-Type: application/json');
 $rows = Database::get()->query("
     SELECT e.*, z.name AS zone_name
     FROM valve_events e JOIN zones z ON z.id = e.zone_id
+    WHERE e.executed_at >= NOW() - INTERVAL 48 HOUR
     ORDER BY e.executed_at DESC
-    LIMIT 100
+    LIMIT 250
 ")->fetchAll();
 
 echo json_encode($rows);

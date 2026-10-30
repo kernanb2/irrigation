@@ -68,7 +68,7 @@ Auth::require();
 
     <!-- Event log -->
     <section class="panel">
-      <h2>Recent Valve Events</h2>
+      <h2>Valve Events — Last 48 Hours</h2>
       <table id="eventsTable">
         <thead>
           <tr><th>Time</th><th>Zone</th><th>Action</th><th>Trigger</th><th>By</th></tr>
