@@ -322,6 +322,7 @@ Pond Fill is **normally open**: drained water goes on to the tanks. The **Pond F
 - **End** (run time up, Stop pressed, or any **Pond Drain** button pressed): Pond Fill **opens** first, then the Pond Drain goes back to its last web setting, under the tank sensors again (closed if the tank is full). Pressing a Pond Drain button sets that new drain setting.
 - The board runs the timer itself, so a run ends on time even if WiFi or the server is down.
 - **After a restart or power loss** any run ends: Pond Fill opens (logged "opened after restart" if it was closed) and the drain closes, as usual. Like the drain, a command is applied only once (`fill_cmd_seq`), so a reboot never restarts a run.
+- Step-by-step diagram: [pond-fill-flow.md](pond-fill-flow.md).
 
 ### Tank Level Control
 
