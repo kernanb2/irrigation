@@ -33,17 +33,19 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 #define DEFAULT_FLUSH_SEC 30
 #define MAX_FLUSH_SEC     300   // manual /flush cap
 
-// The ball valve takes ~3–5 s to swing open after the relay clicks. The relay
-// stays on this much longer than the flush period, so the flush period is the
-// time the valve is fully open. Raise it if the valve is slower than this.
-#define VALVE_OPEN_TRAVEL_MS 5000
+// The ball valve takes ~7 s to swing open after the relay clicks (timed
+// 2026-10-29). The relay stays on this much longer than the flush period, so the
+// flush period is the time the valve is fully open. Raise it if the valve is slower.
+#define VALVE_OPEN_TRAVEL_MS 8000
 
 // Automatic cycle — both web page lists run 10–120 in steps of 10
 #define CYCLE_MIN         10
 #define CYCLE_MAX         120
 
-// Filter valves count as "moving" (drawing motor current) this long after switching
-#define FILTER_TRAVEL_MS  5000
+// Filter valves count as "moving" (drawing motor current) this long after switching.
+// The other pre-filter also waits this long after a close, so it must cover the
+// full closing swing (~7 s) with a few seconds' margin.
+#define FILTER_TRAVEL_MS  10000
 
 // ── Pond Drain ────────────────────────────────────────────────────────────────
 // BOKYWOX/Tonhe A150 2" valve, CR2-01 = 2-wire reverse polarity: red + / black −
@@ -168,10 +170,12 @@ void setValve(uint8_t f, bool open, Reason reason) {
 }
 
 // Only one pre-filter flushes at a time: a flush that comes due while the other
-// valve is open waits and starts as soon as that one closes.
-bool otherFilterOpen(uint8_t f) {
+// valve is open or still swinging shut waits until that one is fully closed.
+bool otherFilterBusy(uint8_t f) {
     for (uint8_t o = 0; o < NUM_FILTERS; o++) {
-        if (o != f && filters[o].valveOpen) return true;
+        if (o == f) continue;
+        if (filters[o].valveOpen) return true;
+        if (filters[o].lastChangeMs && millis() - filters[o].lastChangeMs < FILTER_TRAVEL_MS) return true;
     }
     return false;
 }
@@ -366,7 +370,7 @@ void runCycles() {
         if (fl.valveOpen && (long)(now - fl.flushEndMs) >= 0) {
             setValve(f, false, fl.cycleEnabled ? REASON_CYCLE : REASON_MANUAL);
         }
-        if (fl.cycleEnabled && !fl.valveOpen && !drain.moving && !otherFilterOpen(f)
+        if (fl.cycleEnabled && !fl.valveOpen && !drain.moving && !otherFilterBusy(f)
             && (long)(now - fl.nextFlushMs) >= 0) {
             startFlush(f, fl.flushSec, REASON_CYCLE);
         }
@@ -394,7 +398,7 @@ void fillStatus(JsonDocument& doc) {
         if (fl.cycleEnabled && !fl.valveOpen) {
             long next = (long)(fl.nextFlushMs - now) / 1000;
             o["next_flush_in_s"] = next < 0 ? 0 : next;
-            o["waiting"]         = next <= 0 && otherFilterOpen(f);
+            o["waiting"]         = next <= 0 && otherFilterBusy(f);
         } else {
             o["next_flush_in_s"] = nullptr;
         }
@@ -501,7 +505,7 @@ void handleFlush() {
         server.send(200, "application/json", "{\"ok\":false,\"error\":\"Pond Drain is moving — try again shortly\"}");
         return;
     }
-    if (otherFilterOpen(f)) {
+    if (otherFilterBusy(f)) {
         server.send(200, "application/json", "{\"ok\":false,\"error\":\"The other pre-filter is flushing — try again when it closes\"}");
         return;
     }

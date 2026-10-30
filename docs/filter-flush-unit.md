@@ -227,7 +227,7 @@ The four relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) togeth
 | Pond Drain, while moving | ≤1A (surge maybe 1.5A) |
 | ESP32 + 4 relay coils | ~0.3A |
 
-To stay well inside 3A, the **firmware never starts the drain while a filter valve is moving, and never starts a flush while the drain is moving**. A filter valve counts as moving for 5 s after it switches. Closing a filter valve is never delayed. So the worst case in practice is about 1.8A. A flush or drain move may start a few seconds late because of this.
+To stay well inside 3A, the **firmware never starts the drain while a filter valve is moving, and never starts a flush while the drain is moving**. A filter valve counts as moving for 10 s after it switches (`FILTER_TRAVEL_MS`). Closing a filter valve is never delayed. So the worst case in practice is about 1.8A. A flush or drain move may start a few seconds late because of this.
 
 ---
 
@@ -268,13 +268,13 @@ WiFi settings and this board's API key go in `firmware/filter_flush/secrets.h` (
 
 On the dashboard, Unit E has two cards, **Pondwater Pre-filter** and **Pondwater Pre-filter-2**. Each has its own:
 - **Start / Stop flush cycle** button
-- **Flush period:** 10–120 seconds (steps of 10). How long the valve stays **fully open**. The valve takes about 3–5 s to swing open, so the relay stays on 5 s longer than the flush period (`VALVE_OPEN_TRAVEL_MS` in the sketch). A 10 s flush keeps the relay on for 15 s.
+- **Flush period:** 10–120 seconds (steps of 10). How long the valve stays **fully open**. The valve takes about 7 s to swing open, so the relay stays on 8 s longer than the flush period (`VALVE_OPEN_TRAVEL_MS` in the sketch). A 10 s flush keeps the relay on for 18 s.
 - **Wait time between flushes:** 10–120 minutes (steps of 10). How long it stays closed before the next flush.
 
 How the cycle behaves:
 - **Start:** flushes right away, then repeats: open for the flush period, wait, flush again.
 - **Stop:** closes the valve immediately (even mid-flush) and stops the cycle.
-- The two cycles have their own settings, but only one valve flushes at a time. If a flush comes due while the other valve is open (for example, Start pressed on both cards), it waits and starts as soon as the other valve closes; the card shows "Waiting — flushes when the other pre-filter closes". A manual `/flush` is refused while the other valve is open.
+- The two cycles have their own settings, but only one valve flushes at a time. If a flush comes due while the other valve is open (for example, Start pressed on both cards), it waits until the other valve has fully closed (`FILTER_TRAVEL_MS`, 10 s after the close command) and then starts; the card shows "Waiting — flushes when the other pre-filter closes". A manual `/flush` is refused while the other valve is open or still closing.
 - **Changing the wait time while running:** the next flush is rescheduled from the end of the last one. If that time has already passed, it flushes right away.
 - The **ESP32 runs the timer itself** and saves the settings in flash. The cycle keeps going if WiFi or the server goes down, and resumes after a reboot. After a reboot, the first flush comes one wait period later.
 
@@ -326,7 +326,7 @@ Settings are stored in the `settings` table as `filter1_cycle_enabled`, `filter1
 
 ### Event Log
 
-Every valve open and close appears in **Recent Valve Events** on the dashboard, with the filter name, the action, and why it happened:
+Every valve open and close appears in **Valve Events — Last 48 Hours** on the dashboard, with the filter name, the action, and why it happened:
 
 | Shown as | Meaning |
 |----------|---------|
@@ -347,7 +347,7 @@ Each valve has a row in the `zones` table (16 and 17 for the filters, 18 for the
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/status` | GET | For each valve: state, flush time left, cycle settings, time to next flush. Plus uptime |
-| `/flush?valve=V&seconds=N` | POST | Open valve V (1 or 2, default 1) fully for N seconds (plus the 5 s opening time), then close it automatically (default 30, max 300) |
+| `/flush?valve=V&seconds=N` | POST | Open valve V (1 or 2, default 1) fully for N seconds (plus the 8 s opening time), then close it automatically (default 30, max 300) |
 | `/close?valve=V` | POST | Close valve V immediately (its cycle continues; next flush is one wait period later) |
 
 Examples from a computer on the LAN:
