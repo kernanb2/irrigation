@@ -1,6 +1,8 @@
 # Pond Fill — What Happens When You Press Start
 
-Pond Fill is a normally open 2" valve on Unit E. While it is open, water from the Pond Drain goes to the tanks. A run opens the drain fully and then closes Pond Fill, so the water goes to the pond instead. When the run ends, both valves go back to how they were. Wiring and settings are in [filter-flush-unit.md](filter-flush-unit.md#pond-fill-web-page).
+A pipe from the bottom of the pond runs through the **Pond Drain** valve to a T, where spring water joins it. From the T the water goes through the normally open **Pond Fill** valve and the two pre-filters (in parallel) down to the storage tank, which has the level sensors and the submersible pump that feeds the irrigation zones.
+
+A run opens Pond Drain fully and then closes Pond Fill. The spring water can't reach the tank, so it flows back up through the open drain into the pond. When the run ends, both valves go back to how they were. Wiring and settings are in [filter-flush-unit.md](filter-flush-unit.md#pond-fill-web-page).
 
 ## From the Button to the Relays
 

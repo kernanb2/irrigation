@@ -1,6 +1,7 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
 let fillHoursChoice = null;   // Pond Fill run time picked on the card (sent with Start)
+let pondDiagramOpen = (() => { try { return localStorage.getItem('pondDiagramOpen') !== 'false'; } catch { return true; } })();
 const POLL_MS = 15000;
 
 // ── API wrapper — redirects to login on session expiry ────────────────────────
@@ -150,6 +151,7 @@ function renderExtraUnits() {
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
       <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond</div>
+      ${filter ? pondDiagram() : ''}
       ${(filter?.filters || []).map(filterCard).join('')}
       ${filter?.drain ? drainCard(filter.drain) : ''}
       ${filter?.fill ? fillCard(filter.fill) : ''}`;
@@ -270,7 +272,7 @@ function fillCard(p) {
     } else if (active) {
         detail = `Filling the pond — ${formatDuration(got.remaining_s)} left`;
     } else {
-        detail = 'Open — drained water goes to the tanks';
+        detail = 'Open — water goes on to the storage tank';
     }
 
     const busy    = !online || !got || pending;
@@ -326,6 +328,128 @@ async function fillCmd(body) {
     } catch (e) {
         if (e.message !== 'session_expired') alert('Network error — could not reach server.');
     }
+}
+
+// Live plumbing picture: pond → Pond Drain → T (spring water joins) → Pond Fill →
+// pre-filters (in parallel) → storage tank → pump → Orival auto filter → irrigation zones. Pipes with
+// water moving in them are blue and animated, so anyone can see where it's going.
+function pondDiagram() {
+    const online   = filter.online;
+    const d        = online ? filter.drain?.reported : null;
+    const p        = online ? filter.fill?.reported  : null;
+    const tank     = d?.tank;
+    const drainPct = d?.position_pct ?? 0;
+    const drainOpen = drainPct > 0;
+    const fillOpen  = p ? p.valve === 'open' : true;
+    const flushing  = [1, 2].map(n => online && filter.filters?.find(f => f.filter === n)?.reported?.valve === 'open');
+
+    // Water only moves when the valves give it somewhere to go
+    const springFlows = online && (fillOpen || drainOpen);
+    const toTank      = online && fillOpen;
+    const pondFlows   = online && drainOpen;   // out of the pond, or back into it when Pond Fill is closed
+
+    const pipe = (path, flowing, rev = false) =>
+        `<path class="pipe${flowing ? ' flow' : ''}${rev ? ' rev' : ''}" d="${path}"/>`;
+    const valve = (x, y, state, vertical = false) => {
+        const pts = vertical
+            ? `${x-10},${y-14} ${x+10},${y+14} ${x-10},${y+14} ${x+10},${y-14}`
+            : `${x-14},${y-10} ${x+14},${y+10} ${x+14},${y-10} ${x-14},${y+10}`;
+        return `<polygon class="pd-valve ${state}" points="${pts}"/>`;
+    };
+    const drainState = !d ? 'unknown' : d.moving ? 'moving' : drainOpen ? 'open' : 'closed';
+    const fillState  = !p ? 'unknown' : p.moving ? 'moving' : fillOpen ? 'open' : 'closed';
+    const drainText  = !d ? '—' : d.moving ? 'moving' : drainPct === 0 ? 'closed' : drainPct === 100 ? 'open' : `${drainPct}% open`;
+    const fillText   = !p ? '—' : p.moving ? (fillOpen ? 'opening' : 'closing') : p.valve;
+    const flushState = i => !online ? 'unknown' : flushing[i] ? 'open' : 'closed';
+    const sensor     = (y, wet) => `<circle class="pd-sensor ${!tank ? 'unknown' : wet ? 'wet' : ''}" cx="700" cy="${y}" r="5"/>`;
+    const waterTop   = !tank ? 215 : tank.top_wet ? 180 : tank.refill_wet ? 205 : 235;
+
+    let caption;
+    if (!online) {
+        caption = 'Unit E is offline, so the valve positions are unknown.';
+    } else if (d?.moving || p?.moving) {
+        caption = 'A valve is moving — the picture updates when it stops.';
+    } else if (drainOpen && !fillOpen) {
+        caption = (p.active ? `Pond Fill is running (${formatDuration(p.remaining_s)} left). ` : '')
+            + "Pond Fill is closed, so the spring water can't reach the storage tank. "
+            + 'It flows back through the open Pond Drain into the pond.';
+    } else if (drainOpen) {
+        caption = `The pond is draining${drainPct < 100 ? ` (Pond Drain ${drainPct}% open)` : ''}. `
+            + 'Pond water joins the spring water and goes through the pre-filters to the storage tank.';
+    } else if (fillOpen) {
+        caption = 'Pond Drain is closed, so the pond is cut off. '
+            + 'Spring water flows through Pond Fill and the pre-filters to the storage tank.';
+    } else {
+        caption = 'Pond Drain and Pond Fill are both closed, so no water reaches the storage tank.';
+    }
+    flushing.forEach((on, i) => { if (on) caption += ` Pre-filter ${i + 1} is flushing.`; });
+
+    return `
+    <details class="pond-diagram" ${pondDiagramOpen ? 'open' : ''} ontoggle="togglePondDiagram(this)">
+      <summary>How the pond valves work</summary>
+      <div class="pd-scroll">
+        <svg viewBox="0 0 890 300" role="img" aria-label="Pond and storage tank plumbing">
+          ${pipe('M95 90 V140 H300', pondFlows, !fillOpen)}
+          ${pipe('M300 20 V140', springFlows)}
+          ${pipe('M300 140 H420', toTank)}
+          ${pipe('M420 140 V95 H540 V140', toTank)}
+          ${pipe('M420 140 V185 H540 V140', toTank)}
+          ${pipe('M540 140 H610 V165', toTank)}
+          ${pipe('M485 83 V40', toTank && flushing[0])}
+          ${pipe('M485 197 V245', toTank && flushing[1])}
+          ${pipe('M665 248 V130 H880', false)}
+
+          <path class="pd-water" d="M20 30 H170 V70 Q170 90 150 90 H40 Q20 90 20 70 Z"/>
+          <text class="pd-label" x="95" y="64" text-anchor="middle">Pond</text>
+          <text class="pd-label" x="310" y="24">Spring</text>
+          <circle class="pd-tee" cx="300" cy="140" r="5"/>
+
+          ${valve(215, 140, drainState)}
+          <text class="pd-label" x="215" y="168" text-anchor="middle">Pond Drain</text>
+          <text class="pd-note"  x="215" y="183" text-anchor="middle">${drainText}</text>
+          ${valve(365, 140, fillState)}
+          <text class="pd-label" x="365" y="168" text-anchor="middle">Pond Fill</text>
+          <text class="pd-note"  x="365" y="183" text-anchor="middle">${fillText}</text>
+
+          <rect class="pd-box" x="455" y="83"  width="60" height="24" rx="4"/>
+          <text class="pd-note" x="485" y="99"  text-anchor="middle">Filter 1</text>
+          <rect class="pd-box" x="455" y="173" width="60" height="24" rx="4"/>
+          <text class="pd-note" x="485" y="189" text-anchor="middle">Filter 2</text>
+          ${valve(485, 62, flushState(0), true)}
+          <text class="pd-note" x="499" y="46">flush</text>
+          ${valve(485, 222, flushState(1), true)}
+          <text class="pd-note" x="499" y="244">flush</text>
+
+          <rect class="pd-box" x="580" y="165" width="120" height="110" rx="4"/>
+          <rect class="pd-water" x="582" y="${waterTop}" width="116" height="${273 - waterTop}"/>
+          ${sensor(185, tank?.top_wet)}
+          <text class="pd-note" x="710" y="189">top sensor</text>
+          ${sensor(215, tank?.refill_wet)}
+          <text class="pd-note" x="710" y="219">refill sensor</text>
+          <rect class="pd-box" x="650" y="248" width="30" height="20" rx="3"/>
+          <text class="pd-note" x="645" y="262" text-anchor="end">pump</text>
+          <text class="pd-label" x="640" y="292" text-anchor="middle">Storage tank</text>
+          <rect class="pd-box" x="690" y="117" width="80" height="26" rx="4"/>
+          <text class="pd-note" x="730" y="134" text-anchor="middle">Auto filter</text>
+          <text class="pd-label" x="730" y="108" text-anchor="middle">Orival ORG 3"</text>
+          <text class="pd-note" x="730" y="158" text-anchor="middle">Omnitrol 300</text>
+          <text class="pd-note" x="885" y="160" text-anchor="end">to irrigation zones</text>
+        </svg>
+      </div>
+      <p class="pd-caption">${caption}</p>
+      <ul class="pd-legend">
+        <li><b>Pond Drain</b> opens the pipe from the bottom of the pond. Normally closed.</li>
+        <li><b>Pond Fill</b> sits after the T where the spring water joins. Normally open, so water goes on to the tank. <b>Start Pond Fill</b> opens Pond Drain and closes Pond Fill, so the spring water runs back up into the pond.</li>
+        <li><b>Pre-filters</b> are in parallel just before the tank. Each one flushes on its own cycle.</li>
+        <li><b>Storage tank</b> level sensors close Pond Drain when the tank is full. The submersible pump feeds the irrigation zones.</li>
+        <li><b>Auto filter</b> (Orival ORG/B-030-LE) cleans the pumped water before the zones. Its Omnitrol 300 controller flushes the screen on its own.</li>
+      </ul>
+    </details>`;
+}
+
+function togglePondDiagram(el) {
+    pondDiagramOpen = el.open;
+    try { localStorage.setItem('pondDiagramOpen', el.open); } catch {}
 }
 
 function filterCard(f) {

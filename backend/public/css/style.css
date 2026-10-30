@@ -208,6 +208,7 @@ main {
      card with empty rows, like Unit D's), so space the rows with margins instead */
   .zone-grid        { row-gap: 0; margin-bottom: 1rem; }   /* + the cards' 1rem = 2rem as before */
   .zone-unit-header { margin-bottom: 1rem; }
+  .pond-diagram     { margin-bottom: 1rem; }
   .zone-card {
     margin-bottom: 1rem;
     display: grid;
@@ -218,6 +219,50 @@ main {
   }
   .zone-actions { margin-top: 0; align-self: end; }
 }
+
+/* ── Unit E plumbing diagram ──────────────────────────────────────────────── */
+.pond-diagram {
+  grid-column: 1 / -1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+.pond-diagram summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+.pd-scroll { overflow-x: auto; }
+.pd-scroll svg { display: block; width: 100%; min-width: 560px; height: auto; margin: 0.75rem 0; }
+
+.pipe { fill: none; stroke: #3b4d74; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.pipe.flow { stroke: var(--blue); stroke-dasharray: 12 8; stroke-linecap: butt; animation: pipe-flow 0.8s linear infinite; }
+.pipe.flow.rev { animation-direction: reverse; }
+@keyframes pipe-flow { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .pipe.flow { animation: none; } }
+
+.pd-valve { stroke: var(--dark); stroke-width: 1.5; }
+.pd-valve.open    { fill: var(--green); }
+.pd-valve.closed  { fill: var(--red); }
+.pd-valve.moving  { fill: var(--orange); }
+.pd-valve.unknown { fill: var(--muted); }
+.pd-water  { fill: var(--blue); opacity: 0.35; }
+.pd-box    { fill: var(--card2); stroke: var(--muted); }
+.pd-tee    { fill: #3b4d74; }
+.pd-sensor { fill: var(--card); stroke: var(--blue); stroke-width: 1.5; }
+.pd-sensor.wet     { fill: var(--blue); }
+.pd-sensor.unknown { stroke: var(--muted); }
+.pd-label  { fill: var(--text); font-size: 12px; font-weight: 600; }
+.pd-note   { fill: var(--muted); font-size: 11px; }
+
+.pd-caption { font-size: 0.85rem; }
+.pd-legend {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.pd-legend b { color: var(--text); }
 
 .zone-card.valve-open { border-color: var(--green); }
 .zone-card.valve-open { background: #0d2b1a; }
