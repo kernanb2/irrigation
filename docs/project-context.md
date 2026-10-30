@@ -118,7 +118,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 | Unit | ID | Purpose |
 |------|----|---------|
 | D | 4 | Placeholder on the dashboard, no hardware yet |
-| E | 5 | Pondwater pre-filter flush (2 valves) + Pond Drain (filter flush board, 192.168.1.47). Zones rows 16/17/18 exist only for event logging |
+| E | 5 | Pondwater pre-filter flush (2 valves) + Pond Drain + Pond Fill (filter flush board, 192.168.1.47). Zones rows 16/17/18/19 exist only for event logging |
 
 **Interlock:** no two special zones may be open at once (enforced in `backend/public/api/valve.php`, setting `creek_pond_interlock`). It used to pair Creek Source (Zone 1) with Pond to Pump Tank (Zone 6); since 2026-10-28 Zone 6 is a regular zone, so Creek Source is the only special zone and the interlock has nothing to block.
 
@@ -128,8 +128,8 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 - **URL:** `https://paradisepond.tech/irrigation/`
 - **Public files:** `backend/public/` — index.php, login.php, css/style.css, js/app.js
-- **API endpoints:** `backend/public/api/` — status.php, valve.php, unit_report.php, schedules.php, settings.php, events.php (plus Unit E: filter.php, filter_report.php, drain.php)
-- **PHP classes:** `backend/src/` — Auth.php, Database.php, ZoneUnit.php (plus Unit E: FilterFlush.php, PondDrain.php)
+- **API endpoints:** `backend/public/api/` — status.php, valve.php, unit_report.php, schedules.php, settings.php, events.php (plus Unit E: filter.php, filter_report.php, drain.php, fill.php)
+- **PHP classes:** `backend/src/` — Auth.php, Database.php, ZoneUnit.php (plus Unit E: FilterFlush.php, PondDrain.php, PondFill.php)
 - **Config:** `backend/config/config.php` — DB connection, API key, timezone (America/Chicago), BASE_PATH=/irrigation
 - **Cron:** `backend/cron/check_schedules.php` — evaluates schedules and moisture thresholds
 - **DB:** MySQL, database name `irrigation`
@@ -169,6 +169,7 @@ Separate ESP32 that flushes a pre-filter on the storage-tank inlet. Full details
 - **Firmware:** `firmware/filter_flush/filter_flush.ino`. Runs both automatic flush cycles itself (settings saved in NVS), queues valve events for the event log, and reports to `/api/filter_report.php` every 2 s (via paradisepond.tech); the reply carries the cycle settings from the web page. Local: `GET /status`, `POST /flush?seconds=N`, `POST /close`
 - **Web page:** Unit E cards "Pondwater Pre-filter" and "Pondwater Pre-filter-2", each with Start/Stop flush cycle, flush period 10–120 s, wait between flushes 10–120 min. Every open/close appears in the dashboard's valve events list (last 48 hours).
 - **Pond Drain:** BOKYWOX A150-T50-S2-CR2-01-DC12V (2", 2-wire reverse polarity, ≤1A, ≤11 s travel). Relays 3+4 on a second 2-relay module, GPIO 25 (red) / 33 (black), fuse F4 2A. Both relays off = close (fail-safe), both on = open, relay 3 only = hold. Partial open (10–90%) is timed from `DRAIN_TRAVEL_MS`. Closes after any restart; web commands use `drain_cmd_seq` so they're never replayed. Firmware never moves the drain while a filter valve moves (and vice versa) to stay inside the 3A supply. Main fuse F1 raised to 3A. Docs: `docs/filter-flush-unit.md`.
+- **Pond Fill:** second A150 2" valve, normally open (drained water goes on to the tanks). Relays 5+6 on a third 2-relay module, GPIO 32 (black) / 13 (red), wired so both relays off = open; fuse F5 2A. A 1–24 h run from the web page opens the drain fully, then closes Pond Fill (tank sensors ignored); at the end, or when any Pond Drain button is pressed, Pond Fill opens first, then the drain returns to its last setting. Restart ends a run. `fill_hours` / `fill_active` / `fill_cmd_seq` in settings; zones row 19. Coded 2026-10-29, hardware not yet wired.
 - **Status (2026-10-26):** fully wired and tested. IP 192.168.1.47 (DHCP reservation, MAC e0:8c:fe:57:be:5c), `/flush` opens the valve and it closes when the timer ends. Fail-safe confirmed: valve closes if ESP32 loses power mid-flush. **2026-10-27:** reflashed with server polling; flush cycle started/stopped from the web page works correctly. Second valve (Pondwater Pre-filter-2, GPIO 27) wired and working; event log, 2 s check-ins, and valve opening-time allowance confirmed. Power-up test passed: both valves stay closed when the whole system is powered on. Reflashed with Pond Drain support; firmware and drain card working. Drain hardware (second 2-relay module, F4 fuse, F1 → 3A) not yet wired — relay modules on order. Tank level control added (top sensor closes the drain, below the second sensor reopens it; GPIO 34/35) — not yet wired.
 
 ## Known Issues / Architecture Notes

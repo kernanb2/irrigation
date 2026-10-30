@@ -8,8 +8,8 @@ class FilterFlush {
     // Filter number => zones row used for valve_events and valve_state
     const ZONE_IDS = [1 => 16, 2 => 17];
 
-    // Device number in reported events => zones row (3 = Pond Drain)
-    const EVENT_ZONE_IDS = [1 => 16, 2 => 17, 3 => 18];
+    // Device number in reported events => zones row (3 = Pond Drain, 4 = Pond Fill)
+    const EVENT_ZONE_IDS = [1 => 16, 2 => 17, 3 => 18, 4 => 19];
 
     // Both web UI lists run 10–120 in steps of 10
     const MIN_VALUE = 10;
@@ -65,7 +65,7 @@ class FilterFlush {
         }
     }
 
-    // Store valve events reported by the unit (filters 1–2 and device 3, the Pond Drain). Each report repeats unacknowledged
+    // Store valve events reported by the unit (filters 1–2, 3 = Pond Drain, 4 = Pond Fill). Each report repeats unacknowledged
     // events, so skip any seq already stored for this boot of the ESP32.
     public static function logEvents(array $events, string $bootId): void {
         $db     = Database::get();
@@ -81,6 +81,8 @@ class FilterFlush {
             'restart'   => 'closed after restart',
             'tank_full' => 'tank full',
             'tank_low'  => 'tank below refill sensor',
+            'fill'      => 'pond fill',
+            'fill_done' => 'pond fill time ended',
         ];
         $insert = $db->prepare("
             INSERT INTO valve_events (zone_id, action, trigger_type, initiated_by, executed_at, notes)
@@ -94,6 +96,9 @@ class FilterFlush {
 
             $reason = $ev['reason'] ?? 'manual';
             $note   = $notes[$reason] ?? $reason;
+            if ($reason === 'restart' && ($ev['action'] ?? '') === 'open') {
+                $note = 'opened after restart';   // Pond Fill is normally open
+            }
             // Drain moves to a partial position carry the target
             if (isset($ev['pct']) && $ev['pct'] > 0 && $ev['pct'] < 100) {
                 $note .= " — {$ev['pct']}% open";
@@ -101,7 +106,7 @@ class FilterFlush {
             $insert->execute([
                 self::EVENT_ZONE_IDS[$n],
                 ($ev['action'] ?? '') === 'open' ? 'open' : 'close',
-                in_array($reason, ['cycle', 'tank_full', 'tank_low'], true) ? 'schedule' : 'manual',
+                in_array($reason, ['cycle', 'tank_full', 'tank_low', 'fill_done'], true) ? 'schedule' : 'manual',
                 max(0, (int)($ev['ago_s'] ?? 0)),
                 $note,
             ]);

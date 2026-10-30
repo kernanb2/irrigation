@@ -66,7 +66,8 @@ Add:
 | `/api/valve.php`      | Session      | POST          | Request a zone valve open/close (the unit applies it on its next check-in) |
 | `/api/unit_report.php` | API Key (Units A–C) | POST   | Zone unit check-in every 5 s: valve states, events, sensors; reply = desired valves |
 | `/api/filter.php`     | Session      | GET/POST      | Unit E: status (flush cycles + Pond Drain) / change flush settings |
-| `/api/drain.php`      | Session      | POST          | Unit E Pond Drain: set target position (0–100%) |
+| `/api/drain.php`      | Session      | POST          | Unit E Pond Drain: set target position (0–100%) — also ends a Pond Fill run |
+| `/api/fill.php`       | Session      | POST          | Unit E Pond Fill: start a run (`hours` 1–24) or stop it (`stop: true`) |
 | `/api/filter_report.php` | API Key (Unit E) | POST     | Unit E reports status and valve events, gets cycle settings |
 | `/api/schedules.php`  | Session      | GET/POST/PATCH/DELETE | Manage schedules        |
 | `/api/events.php`     | Session      | GET           | Valve event history              |
@@ -95,5 +96,6 @@ backend/
     ├── Database.php          PDO singleton
     ├── FilterFlush.php       Unit E flush-cycle settings and event logging
     ├── PondDrain.php         Unit E Pond Drain target + command counter
+    ├── PondFill.php          Unit E Pond Fill run + command counter
     └── ZoneUnit.php          Units A–C: desired valve states, check-ins, events, sensor storage
 ```

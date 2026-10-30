@@ -1,5 +1,6 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
+let fillHoursChoice = null;   // Pond Fill run time picked on the card (sent with Start)
 const POLL_MS = 15000;
 
 // ── API wrapper — redirects to login on session expiry ────────────────────────
@@ -48,8 +49,8 @@ async function fetchAll() {
             zoneFollowTimer = setTimeout(() => { zoneFollowTimer = null; fetchAll(); }, 2000);
         }
 
-        // Follow the drain while it moves (one timer at a time)
-        if (filter?.drain?.reported?.moving && !drainFollowTimer) {
+        // Follow the drain and Pond Fill while they move (one timer at a time)
+        if ((filter?.drain?.reported?.moving || filter?.fill?.reported?.moving) && !drainFollowTimer) {
             drainFollowTimer = setTimeout(() => { drainFollowTimer = null; fetchAll(); }, 2000);
         }
 
@@ -148,9 +149,10 @@ function renderExtraUnits() {
     box.innerHTML = `
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
-      <div class="zone-unit-header">Unit E — Pre-filter Flush</div>
+      <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond</div>
       ${(filter?.filters || []).map(filterCard).join('')}
-      ${filter?.drain ? drainCard(filter.drain) : ''}`;
+      ${filter?.drain ? drainCard(filter.drain) : ''}
+      ${filter?.fill ? fillCard(filter.fill) : ''}`;
 }
 
 function drainCard(d) {
@@ -173,8 +175,11 @@ function drainCard(d) {
     } else {
         detail = pos === 0 ? 'Closed' : pos === 100 ? 'Fully open' : `Partly open — ${pos}%`;
     }
-    const tank = online && got?.tank;
-    if (tank?.full && !got.moving) {
+    const filling = online && filter.fill?.reported?.active;
+    const tank    = online && got?.tank;
+    if (filling && !got.moving && !pending) {
+        detail = 'Fully open — Pond Fill running (tank sensors ignored)';
+    } else if (tank?.full && !got.moving) {
         const back = got.user_pct === 100 ? 'fully open' : got.user_pct + '% open';
         detail = tank.fault
             ? 'Closed — tank sensor fault (top sensor wet, refill sensor dry)'
@@ -203,7 +208,7 @@ function drainCard(d) {
         ${tankLine}
       </div>
       <div class="zone-actions">
-        <button class="btn-open"  onclick="setDrain(100)" ${busy || (pos === 100 && !got?.moving) ? 'disabled' : ''}>Open</button>
+        <button class="btn-open"  onclick="setDrain(100)" ${busy || (pos === 100 && !got?.moving && !filling) ? 'disabled' : ''}>Open</button>
         <button class="btn-close" onclick="setDrain(0)"   ${busy || (pos === 0 && !got?.moving) ? 'disabled' : ''}>Close</button>
       </div>
       <div class="card-fields">
@@ -217,8 +222,12 @@ function drainCard(d) {
 }
 
 async function setDrain(pct) {
-    // Opening drains the pond — make sure it's intended
-    if (pct > 0 && !confirm(`Open the Pond Drain ${pct === 100 ? 'fully' : 'to ' + pct + '%'}?`)) {
+    // Opening drains the pond — make sure it's intended. During Pond Fill any drain button ends the fill.
+    const where = pct === 0 ? 'closed' : pct === 100 ? 'fully open' : pct + '% open';
+    const question = filter?.fill?.reported?.active
+        ? `This ends Pond Fill: Pond Fill opens, then the Pond Drain goes to ${where}. Continue?`
+        : pct > 0 ? `Open the Pond Drain ${pct === 100 ? 'fully' : 'to ' + pct + '%'}?` : null;
+    if (question && !confirm(question)) {
         renderExtraUnits();
         return;
     }
@@ -231,6 +240,87 @@ async function setDrain(pct) {
         const data = await res.json();
         if (!data.success) alert('Error: ' + (data.error || 'Unknown error'));
         document.activeElement?.blur();
+        fetchAll();
+        setTimeout(fetchAll, 3000);    // Unit E picks up changes within 2 s
+    } catch (e) {
+        if (e.message !== 'session_expired') alert('Network error — could not reach server.');
+    }
+}
+
+// Pond Fill: normally open. A run opens the drain fully, then closes this valve.
+function fillCard(p) {
+    const want    = p.desired;
+    const got     = p.reported;
+    const online  = filter.online;
+    const pending = online && got && got.seq !== want.seq;
+    const active  = online && got?.active;
+    const isOpen  = got ? got.valve === 'open' : true;
+    if (fillHoursChoice === null) fillHoursChoice = want.hours;
+
+    let detail;
+    if (!online) {
+        detail = 'Unit E offline' + (filter.last_seen ? ` — last seen ${new Date(filter.last_seen).toLocaleString()}` : '');
+    } else if (!got) {
+        detail = 'Waiting for Unit E…';
+    } else if (pending) {
+        detail = 'Sending to Unit E…';
+    } else if (got.moving) {
+        detail = active ? 'Starting — opening the Pond Drain, then closing Pond Fill…'
+                        : 'Ending — opening Pond Fill, then the Pond Drain goes back to its setting…';
+    } else if (active) {
+        detail = `Filling the pond — ${formatDuration(got.remaining_s)} left`;
+    } else {
+        detail = 'Open — drained water goes to the tanks';
+    }
+
+    const busy    = !online || !got || pending;
+    const options = Array.from({ length: 24 }, (_, i) => i + 1)
+        .map(h => `<option value="${h}" ${h === fillHoursChoice ? 'selected' : ''}>${h} hour${h > 1 ? 's' : ''}</option>`).join('');
+    const badge   = got?.moving ? (got.valve === 'open' ? 'Opening' : 'Closing') : isOpen ? 'Open' : 'Closed';
+
+    return `
+    <div class="zone-card special ${active ? 'valve-open' : ''}" id="pond-fill">
+      <div class="zone-header">
+        <div>
+          <div class="zone-name">Pond Fill</div>
+          <div class="zone-id">2" valve — normally open</div>
+        </div>
+        <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${badge}</span>
+      </div>
+      <div class="card-info"><div class="zone-sensors">${detail}</div></div>
+      <div class="zone-actions">
+        <button class="${active ? 'btn-close' : 'btn-open'}" onclick="${active ? 'stopFill()' : 'startFill()'}" ${busy ? 'disabled' : ''}>
+          ${active ? 'Stop Pond Fill' : 'Start Pond Fill'}
+        </button>
+      </div>
+      <div class="card-fields">
+        <label class="card-field">Run time
+          <select onchange="fillHoursChoice = parseInt(this.value)" ${busy || active ? 'disabled' : ''}>${options}</select>
+        </label>
+      </div>
+    </div>`;
+}
+
+async function startFill() {
+    const h = fillHoursChoice;
+    if (!confirm(`Fill the pond for ${h} hour${h > 1 ? 's' : ''}? The Pond Drain opens fully, then Pond Fill closes.`)) return;
+    await fillCmd({ hours: h });
+}
+
+async function stopFill() {
+    if (!confirm('Stop Pond Fill? Pond Fill opens, then the Pond Drain goes back to its last setting.')) return;
+    await fillCmd({ stop: true });
+}
+
+async function fillCmd(body) {
+    try {
+        const res  = await apiFetch('/api/fill.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.success) alert('Error: ' + (data.error || 'Unknown error'));
         fetchAll();
         setTimeout(fetchAll, 3000);    // Unit E picks up changes within 2 s
     } catch (e) {

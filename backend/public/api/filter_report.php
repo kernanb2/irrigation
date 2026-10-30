@@ -1,12 +1,13 @@
 <?php
 // Called by Unit E every 2 seconds — API key auth, no session required.
-// Stores the unit's status and valve events, and replies with the desired flush cycles
-// and Pond Drain target.
+// Stores the unit's status and valve events, and replies with the desired flush cycles,
+// Pond Drain target and Pond Fill run.
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/FilterFlush.php';
 require_once __DIR__ . '/../../src/PondDrain.php';
+require_once __DIR__ . '/../../src/PondFill.php';
 
 header('Content-Type: application/json');
 
@@ -71,10 +72,26 @@ if (is_array($body['drain'] ?? null)) {
     $stateStmt->execute([$drainState, $drainState, PondDrain::ZONE_ID]);
 }
 
+// Pond Fill status (normally open)
+$fill = null;
+if (is_array($body['fill'] ?? null)) {
+    $p    = $body['fill'];
+    $fill = [
+        'valve'       => ($p['valve'] ?? '') === 'closed' ? 'closed' : 'open',
+        'moving'      => (bool)($p['moving'] ?? false),
+        'active'      => (bool)($p['active'] ?? false),
+        'hours'       => (int)($p['hours'] ?? 0),
+        'remaining_s' => max(0, (int)($p['remaining_s'] ?? 0)),
+        'seq'         => (int)($p['seq'] ?? 0),
+    ];
+    $stateStmt->execute([$fill['valve'], $fill['valve'], PondFill::ZONE_ID]);
+    PondFill::runEnded($fill);
+}
+
 $db->prepare("
     INSERT INTO settings (key_name, value) VALUES ('filter_last_report', ?)
     ON DUPLICATE KEY UPDATE value = VALUES(value)
-")->execute([json_encode(['filters' => $filters, 'drain' => $drain, 'uptime_s' => (int)($body['uptime_s'] ?? 0)])]);
+")->execute([json_encode(['filters' => $filters, 'drain' => $drain, 'fill' => $fill, 'uptime_s' => (int)($body['uptime_s'] ?? 0)])]);
 
 // A logging failure must never block the reply — the unit needs it to get Start/Stop
 if (!empty($body['events']) && is_array($body['events'])) {
@@ -85,4 +102,8 @@ if (!empty($body['events']) && is_array($body['events'])) {
     }
 }
 
-echo json_encode(['filters' => array_values(FilterFlush::desiredAll()), 'drain' => PondDrain::desired()]);
+echo json_encode([
+    'filters' => array_values(FilterFlush::desiredAll()),
+    'drain'   => PondDrain::desired(),
+    'fill'    => PondFill::desired(),
+]);
