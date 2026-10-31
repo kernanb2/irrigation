@@ -152,12 +152,13 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 - **Units B & C:** not yet built
 - **First valve bench test in progress:**
   - Zone 1 (GPIO 4 IN1, GPIO 5 IN2) → DRV8871 → Rainbird latching solenoid
-  - 9V battery (temporary) → DRV8871 VM (only 1 LM2596 on hand, more ordered)
-  - LM2596 set to 5.0V → ESP32 VIN
-  - Common GND: 9V battery −, LM2596 OUT−, ESP32 GND all tied together
+  - LM2596 #1 set to 9.0V → DRV8871 VM (9V valve rail) — replaced the temporary 9V battery 2026-10-30
+  - LM2596 #2 set to 5.0V → ESP32 VIN
+  - Common GND: both LM2596 IN−/OUT−, DRV8871 GND, ESP32 GND all tied together
   - 8µF cap across DRV8871 VM and GND (temporary — 100µF caps on order)
   - 1N4007 diode across OUT1–OUT2 — **remove it** (2026-10-28): in either orientation it shorts one pulse direction. Facing one way it clamped the open pulse to ~1.1V; reversed, it clamps the close pulse instead
 - **2026-10-28:** diode removed, loose ground reconnected to common GND (DRV8871 input-side GND). Zone 1 opens and closes from the web page within 2–4 s (5 s check-in interval); events logged under the user
+- **2026-10-30:** 9V battery replaced by LM2596 #1 (12V → 9.0V) on the valve rail; Zone 1 opens and closes from the web page on it
 
 ## Unit E — Pre-filter Flush + Pond Drain (ESP32 #2)
 
