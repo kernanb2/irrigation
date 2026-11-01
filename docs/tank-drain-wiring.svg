@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" role="img" aria-label="Wiring diagram: 12V supply through F1 and F6 to relay 7 COM and valve red; relay NO to valve yellow; valve blue to ground; ESP32 3V3, GND and GPIO 23 to the relay input header; LM2596 5V to JD-VCC.">
+<style>
+text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; fill: #1d2420; }
+.t-m { fill: #5d6a63; font-size: 12px; }
+.t-h { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; font-size: 14px; }
+.box { fill: #e7ece9; stroke: #5d6a63; stroke-width: 1.5; }
+.w { fill: none; stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; }
+.w12 { stroke: #c62828; } .wy { stroke: #b88a00; } .wb { stroke: #1f5fbf; }
+.wg { stroke: #2a2f2c; } .w5 { stroke: #d26a00; } .ws { stroke: #2e7d4f; }
+.dot { stroke: none; }
+.tp { fill: #ffffff; stroke: #1d2420; stroke-width: 1.5; }
+.tpn { font-size: 11px; font-weight: 600; text-anchor: middle; }
+.bg{fill:#ffffff}
+</style>
+<rect class="bg" width="900" height="540"/>
+      <!-- 12V supply -->
+      <rect class="box" x="20" y="40" width="130" height="90" rx="6"/>
+      <text class="t-h" x="34" y="66">12V 3A</text>
+      <text class="t-m" x="34" y="84">supply</text>
+      <text x="128" y="74">+</text><text x="34" y="122">−</text>
+
+      <!-- 12V rail: + → F1 → F6 → node -->
+      <path class="w w12" d="M150 70 H190 M240 70 H330 M380 70 H690 V200 H720"/>
+      <rect class="box" x="190" y="58" width="50" height="24" rx="4"/><text x="196" y="75">F1 3A</text>
+      <rect class="box" x="330" y="58" width="50" height="24" rx="4"/><text x="336" y="75">F6 1A</text>
+      <path class="w w12" d="M285 70 V108"/>
+      <text class="t-m" x="240" y="126">to F2–F5, LM2596 IN+</text>
+      <circle class="dot" cx="285" cy="70" r="5" fill="#c62828"/>
+      <circle class="dot" cx="560" cy="70" r="5" fill="#c62828"/>
+
+      <!-- Relay module 4 -->
+      <rect class="box" x="400" y="190" width="240" height="200" rx="6"/>
+      <text class="t-h" x="440" y="290">Relay module 4</text>
+      <text class="t-m" x="440" y="308">relay 7 = channel 1</text>
+      <text class="t-m" x="440" y="324">SRD-05VDC-SL-C</text>
+      <!-- contacts on top edge -->
+      <text x="508" y="210">NC</text><text x="544" y="210">COM</text><text x="592" y="210">NO</text>
+      <circle class="dot" cx="520" cy="190" r="5" fill="#5d6a63"/>
+      <circle class="dot" cx="560" cy="190" r="5" fill="#5d6a63"/>
+      <circle class="dot" cx="600" cy="190" r="5" fill="#5d6a63"/>
+      <text class="t-m" x="486" y="176">empty</text>
+      <path class="w w12" d="M560 70 V190"/>
+      <!-- input header on left edge -->
+      <!-- JD header on bottom edge -->
+      <text x="430" y="378">JD-VCC</text><text x="496" y="378">GND</text>
+      <text class="t-m" x="540" y="378">jumper off</text>
+      <circle class="dot" cx="450" cy="390" r="5" fill="#5d6a63"/>
+      <circle class="dot" cx="510" cy="390" r="5" fill="#5d6a63"/>
+
+      <!-- ESP32 -->
+      <rect class="box" x="170" y="200" width="130" height="190" rx="6"/>
+      <text class="t-h" x="184" y="226">ESP32</text>
+      <text class="t-m" x="184" y="244">Unit E</text>
+      <text x="292" y="234" text-anchor="end">3V3</text>
+      <text x="292" y="259" text-anchor="end">GND</text>
+      <text x="292" y="314" text-anchor="end">GPIO23</text>
+      <path class="w w5" d="M300 230 H400"/>
+      <path class="w wg" d="M300 255 H400"/>
+      <text x="410" y="234">VCC</text><text x="410" y="259">GND</text>
+      <text x="410" y="319">IN1</text>
+      <path class="w ws" d="M300 310 H400"/>
+      <text x="410" y="344" class="t-m">IN2 spare</text>
+      <path class="w wg" d="M235 390 V510"/>
+
+      <!-- LM2596 -->
+      <rect class="box" x="290" y="420" width="110" height="50" rx="6"/>
+      <text class="t-h" x="302" y="442">LM2596</text>
+      <text class="t-m" x="302" y="460">5.0V out</text>
+      <path class="w w5" d="M400 440 H450 V390"/>
+      <path class="w wg" d="M345 470 V510"/>
+      <path class="w wg" d="M510 390 V510"/>
+
+      <!-- Valve -->
+      <rect class="box" x="720" y="160" width="160" height="150" rx="6"/>
+      <text class="t-h" x="740" y="186">Tank drain valve</text>
+      <text class="t-m" x="740" y="204">USS-MSV00213 1"</text>
+      <text x="744" y="232">red</text><text x="744" y="262">yellow</text><text x="744" y="292">blue</text>
+      <path class="w w12" d="M720 200 V228"/>
+      <path class="w wy" d="M600 190 V140 H660 V258 H720"/>
+      <path class="w wb" d="M720 288 H700 V510"/>
+
+      <!-- Ground rail -->
+      <path class="w wg" d="M45 130 V510 H700"/>
+      <text class="t-m" x="60" y="530">common GND (12V supply −)</text>
+
+      <!-- Test points -->
+      <g>
+        <circle class="tp" cx="215" cy="310" r="11"/><text class="tpn" x="215" y="314">1</text>
+        <circle class="tp" cx="355" cy="230" r="11"/><text class="tpn" x="355" y="234">2</text>
+        <circle class="tp" cx="450" cy="415" r="11"/><text class="tpn" x="450" y="419">3</text>
+        <circle class="tp" cx="410" cy="70" r="11"/><text class="tpn" x="410" y="74">4</text>
+        <circle class="tp" cx="560" cy="130" r="11"/><text class="tpn" x="560" y="134">5</text>
+        <circle class="tp" cx="660" cy="200" r="11"/><text class="tpn" x="660" y="204">6</text>
+        <circle class="tp" cx="700" cy="400" r="11"/><text class="tpn" x="700" y="404">7</text>
+      </g>
+    </svg>

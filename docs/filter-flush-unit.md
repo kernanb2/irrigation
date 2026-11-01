@@ -211,6 +211,22 @@ Relay off = yellow unpowered = **closed**, so it closes after any crash, restart
 
 **Bench test first:** with red on +12V and blue on GND, touching yellow to +12V should open it and removing it should close it. Time a full swing; if it's longer than about 13 s, raise `TANK_DRAIN_TRAVEL_MS`.
 
+![Storage Tank Drain wiring](tank-drain-wiring.svg)
+
+**Troubleshooting:** start a run, put the meter's black probe on common GND, and check the numbered points in order. The first wrong reading is where the fault is.
+
+| # | Where | Should read | If it doesn't |
+|---|-------|-------------|---------------|
+| 1 | ESP32 GPIO 23 | ≈0V draining, 3.3V idle | Firmware isn't driving it, or the wire is on the wrong pin (labelled D23 or 23) |
+| 2 | Module 4 IN header, VCC | 3.3V; channel 1 LED lit | VCC isn't on the ESP32's 3V3. LED lit but no click: check point 3 |
+| 3 | Module 4 JD-VCC | 5.0V; relay clicks | Jumper must be off, JD-VCC on the 5V rail, JD-GND on GND |
+| 4 | F6 output | 12V | Fuse blown or not seated. If it blew, look for yellow or red shorted to blue |
+| 5 | Relay 7 COM | 12V always | Loose terminal, or the wire is on NC/NO instead of the middle terminal |
+| 6 | Valve yellow (at the valve) | 12V draining, 0V idle | 12V idle and 0V draining: yellow is on NC, move it to NO. 0V both times: loose wire from NO |
+| 7 | Valve red and blue | red 12V, blue 0Ω to GND | Check red at the valve end, and that blue is on the GND rail |
+
+If all seven are right and the valve still won't open, this model may use red as a **close** signal rather than constant power (U.S. Solid makes both kinds of 3-wire valve). Unplug it and, with blue on GND, try red only, yellow only, then red and yellow together at +12V. The wiring above needs it to open with both on.
+
 ### Tank Level Sensors → ESP32
 
 The tank the Pond Drain fills has four sensors. The XKC-C352 controller uses two of them to run the irrigation pump (on when full, off at its low mark). Unit E uses the **top** sensor and **the one below it**, so the tank starts refilling before the pump stops.
