@@ -77,11 +77,24 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 #define FILL_INDEX        3       // device number 4 in events
 #define FILL_MAX_HOURS    24
 
+// ── Storage Tank Drain ────────────────────────────────────────────────────────
+// U.S. Solid USS-MSV00213, 1" 3-wire — wired like the filter valves: blue → GND,
+// red → +12V (constant, via F6), yellow → relay 7 NO. Relay off = CLOSED, which is
+// also the crash / restart state. "Drain Tank" (10–120 min from the web page) opens
+// the Pond Drain fully and closes Pond Fill, so no spring water reaches the tank, then
+// opens this valve. When the time is up, Stop is pressed or a Pond Drain button is
+// pressed, this valve closes first, then Pond Fill opens and the drain goes back.
+#define TANK_DRAIN_PIN    23
+#define TANK_DRAIN_TRAVEL_MS 15000 // counts as moving this long after switching — time it and adjust
+#define TANK_DRAIN_INDEX  4       // device number 5 in events
+#define TANK_DRAIN_MIN_MIN 10
+#define TANK_DRAIN_MAX_MIN 120
+
 // ── Tank level sensors ────────────────────────────────────────────────────────
 // Two XKC-Y25 non-contact sensors on the tank the drain fills (the controller's own
 // two sensors run the irrigation pump). Top sensor wet → drain closes; once the water
 // drops below the second sensor, the drain goes back to the last web-page setting.
-// Ignored while Pond Fill runs (no water reaches the tank then).
+// Ignored while Pond Fill or Storage Tank Drain runs (no water reaches the tank then).
 // Each sensor: brown → 5V, blue → GND, black (mode) set so yellow is HIGH when DRY,
 // yellow → 10k → GPIO, with 15k from GPIO to GND (5 V → 3.0 V).
 // A broken wire or dead sensor reads LOW = wet, so it can only keep the drain closed.
@@ -93,7 +106,8 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 // ── Global state ──────────────────────────────────────────────────────────────
 // Why a valve moved (REASON_NAME below must match)
 enum Reason : uint8_t { REASON_CYCLE, REASON_STOP, REASON_MANUAL, REASON_WEB, REASON_RESTART,
-                       REASON_TANK_FULL, REASON_TANK_LOW, REASON_FILL, REASON_FILL_DONE };
+                       REASON_TANK_FULL, REASON_TANK_LOW, REASON_FILL, REASON_FILL_DONE,
+                       REASON_TANK_DRAIN, REASON_TANK_DRAIN_DONE };
 
 WebServer       server(80);
 Preferences     prefs;
@@ -154,6 +168,15 @@ struct PondFill {
     uint32_t      appliedSeq;     // last web command applied (kept across reboots)
 } fill;
 
+struct TankDrain {
+    bool          active;
+    uint8_t       minutes;
+    unsigned long endMs;
+    bool          valveOpen;
+    unsigned long lastChangeMs;   // 0 = not moved since boot
+    uint32_t      appliedSeq;     // last web command applied (kept across reboots)
+} tankDrain;
+
 unsigned long   lastReportMs  = 0;
 
 // ── Valve event queue ─────────────────────────────────────────────────────────
@@ -161,11 +184,11 @@ unsigned long   lastReportMs  = 0;
 // than the report interval still reach the event log. seq starts at 1 each boot;
 // the server uses boot_id + seq to skip events it already stored.
 const char* REASON_NAME[] = {"cycle", "stop", "manual", "web", "restart", "tank_full", "tank_low",
-                             "fill", "fill_done"};
+                             "fill", "fill_done", "tank_drain", "tank_drain_done"};
 
 struct ValveEvent {
     uint32_t      seq;
-    uint8_t       filter;        // 0-based; DRAIN_INDEX = Pond Drain, FILL_INDEX = Pond Fill
+    uint8_t       filter;        // 0-based; DRAIN_INDEX = Pond Drain, FILL_INDEX = Pond Fill, TANK_DRAIN_INDEX
     bool          open;
     uint8_t       pct;           // drain target position
     Reason        reason;
@@ -226,9 +249,14 @@ void startFlush(uint8_t f, uint32_t seconds, Reason reason) {
 // ── Power sharing ─────────────────────────────────────────────────────────────
 // The 12V 3A supply can't comfortably run a 2" valve motor (~1A) together with
 // both filter motors, so the Pond Drain and Pond Fill never start while a filter
-// valve is moving, never move together, and a flush never starts while either
-// is moving. (Closing a filter valve is never delayed.)
-bool pondValveMoving() { return drain.moving || fillValve.moving; }
+// valve or the Storage Tank Drain is moving, never move together, and a flush never
+// starts while any of them is moving. (Closing a filter valve or the tank drain is
+// never delayed.)
+bool tankDrainMoving() {
+    return tankDrain.lastChangeMs && millis() - tankDrain.lastChangeMs < TANK_DRAIN_TRAVEL_MS;
+}
+
+bool pondValveMoving() { return drain.moving || fillValve.moving || tankDrainMoving(); }
 
 bool filterMoving() {
     for (uint8_t f = 0; f < NUM_FILTERS; f++) {
@@ -306,7 +334,7 @@ void runDrain() {
     }
 
     // Starting Pond Fill moves the drain first; ending it waits for Pond Fill to open
-    if (drain.movePending && !drain.moving && !filterMoving() && !fillValve.moving
+    if (drain.movePending && !drain.moving && !filterMoving() && !fillValve.moving && !tankDrainMoving()
         && !(fillValve.pending && fill.valveFirst)) {
         startDrainMove();
     }
@@ -333,26 +361,40 @@ void setFillValve(bool open, Reason reason) {
     fillValve.pendingReason = reason;
 }
 
-// Drain fully open, then Pond Fill closes. The tank sensors are ignored until it ends.
-void startFill(uint8_t hours, Reason reason) {
-    fill.active     = true;
-    fill.hours      = hours;
-    fill.endMs      = millis() + hours * 3600000UL;
+// Pond Fill and Storage Tank Drain both need the drain fully open and Pond Fill
+// closed (spring water back into the pond). The tank sensors are ignored meanwhile.
+bool pondModeActive() { return fill.active || tankDrain.active; }
+
+void enterPondMode(Reason reason) {
     fill.valveFirst = false;
     if (drain.targetPct != 100 || drain.movePending) setDrainTarget(100, reason);
     setFillValve(false, reason);
-    Serial.printf("Pond Fill started for %d h\n", hours);
 }
 
-// Pond Fill opens, then the drain goes back to its last web setting (closed if the tank is full)
-void endFill(Reason reason) {
-    if (!fill.active) return;
-    fill.active     = false;
+// Once neither needs it: Pond Fill opens, then the drain goes back to its last web
+// setting (closed if the tank is full)
+void leavePondMode(Reason reason) {
+    if (pondModeActive()) return;
     fill.valveFirst = true;
     setFillValve(true, reason);
     uint8_t back = tank.full && drain.userPct > 0 ? 0 : drain.userPct;
     if (back != drain.targetPct) setDrainTarget(back, reason);
-    Serial.printf("Pond Fill ended — drain back to %d%%\n", back);
+    Serial.printf("Drain back to %d%%\n", back);
+}
+
+void startFill(uint8_t hours, Reason reason) {
+    fill.active = true;
+    fill.hours  = hours;
+    fill.endMs  = millis() + hours * 3600000UL;
+    enterPondMode(reason);
+    Serial.printf("Pond Fill started for %d h\n", hours);
+}
+
+void endFill(Reason reason) {
+    if (!fill.active) return;
+    fill.active = false;
+    Serial.println("Pond Fill ended");
+    leavePondMode(reason);
 }
 
 void runFill() {
@@ -366,7 +408,7 @@ void runFill() {
         Serial.printf("Pond Fill %s\n", fillValve.open ? "open" : "closed");
     }
 
-    if (fillValve.pending && !fillValve.moving && !drain.moving && !filterMoving()
+    if (fillValve.pending && !fillValve.moving && !drain.moving && !filterMoving() && !tankDrainMoving()
         && !(drain.movePending && !fill.valveFirst)) {
         fillValve.pending = false;
         if (fillValve.pendingOpen == fillValve.open) return;
@@ -379,12 +421,59 @@ void runFill() {
     }
 }
 
+// ── Storage Tank Drain control ────────────────────────────────────────────────
+void saveTankDrain() {
+    prefs.begin("tdrain", false);
+    prefs.putBool("open", tankDrain.valveOpen);
+    prefs.putULong("seq", tankDrain.appliedSeq);
+    prefs.end();
+}
+
+// Relay on = +12V on yellow = open. Closing is never delayed.
+void setTankDrainValve(bool open, Reason reason) {
+    digitalWrite(TANK_DRAIN_PIN, open ? RELAY_ON : RELAY_OFF);
+    if (tankDrain.valveOpen == open) return;
+    tankDrain.valveOpen    = open;
+    tankDrain.lastChangeMs = millis();
+    saveTankDrain();
+    queueEvent(TANK_DRAIN_INDEX, open, reason);
+    Serial.printf("Storage Tank Drain %s\n", open ? "opening" : "closing");
+}
+
+// Drain fully open and Pond Fill closed first; runTankDrain then opens the valve
+void startTankDrain(uint8_t minutes, Reason reason) {
+    tankDrain.active  = true;
+    tankDrain.minutes = minutes;
+    tankDrain.endMs   = millis() + minutes * 60000UL;
+    enterPondMode(reason);
+    Serial.printf("Storage Tank Drain started for %d min\n", minutes);
+}
+
+// The tank drain closes first, then Pond Fill opens and the drain goes back
+void endTankDrain(Reason reason) {
+    if (!tankDrain.active) return;
+    tankDrain.active = false;
+    setTankDrainValve(false, reason);
+    Serial.println("Storage Tank Drain ended");
+    leavePondMode(reason);
+}
+
+void runTankDrain() {
+    if (tankDrain.active && (long)(millis() - tankDrain.endMs) >= 0) endTankDrain(REASON_TANK_DRAIN_DONE);
+
+    if (tankDrain.active && !tankDrain.valveOpen && drain.posPct >= 100 && !drain.moving && !drain.movePending
+        && !fillValve.open && !fillValve.moving && !fillValve.pending && !filterMoving()) {
+        setTankDrainValve(true, REASON_TANK_DRAIN);
+    }
+}
+
 // New setting from the web page. While the tank is full it's remembered and
 // applied once the water drops below the refill sensor.
 void webDrainTarget(uint8_t pct) {
     drain.userPct = pct;
-    if (fill.active) {          // a Pond Drain button ends Pond Fill
+    if (pondModeActive()) {     // a Pond Drain button ends Pond Fill and Storage Tank Drain
         endFill(REASON_WEB);
+        endTankDrain(REASON_WEB);
         return;
     }
     if (tank.full && pct > 0) {
@@ -416,11 +505,11 @@ void runTank() {
     if (!tank.full && tank.top.wet) {
         tank.full = true;
         Serial.println(tankFault() ? "Tank sensor fault — drain held closed" : "Tank full — drain closing");
-        if (drain.targetPct > 0 && !fill.active) setDrainTarget(0, REASON_TANK_FULL);
+        if (drain.targetPct > 0 && !pondModeActive()) setDrainTarget(0, REASON_TANK_FULL);
     } else if (tank.full && !tank.top.wet && !tank.refill.wet) {
         tank.full = false;
         Serial.printf("Tank below refill sensor — drain back to %d%%\n", drain.userPct);
-        if (drain.userPct > 0 && !fill.active) setDrainTarget(drain.userPct, REASON_TANK_LOW);
+        if (drain.userPct > 0 && !pondModeActive()) setDrainTarget(drain.userPct, REASON_TANK_LOW);
     }
 }
 
@@ -539,6 +628,15 @@ void fillStatus(JsonDocument& doc) {
     p["remaining_s"] = left < 0 ? 0 : left;
     p["seq"]    = fill.appliedSeq;
 
+    JsonObject t2 = doc["tank_drain"].to<JsonObject>();
+    t2["valve"]   = tankDrain.valveOpen ? "open" : "closed";
+    t2["moving"]  = tankDrainMoving() || (tankDrain.active && !tankDrain.valveOpen);
+    t2["active"]  = tankDrain.active;
+    t2["minutes"] = tankDrain.minutes;
+    long tleft    = tankDrain.active ? (long)(tankDrain.endMs - now) / 1000 : 0;
+    t2["remaining_s"] = tleft < 0 ? 0 : tleft;
+    t2["seq"]     = tankDrain.appliedSeq;
+
     doc["uptime_s"] = now / 1000;
     doc["ip"]       = WiFi.localIP().toString();
 }
@@ -582,7 +680,8 @@ void reportToServer() {
                               want[f]["flush_sec"] | 0,
                               want[f]["wait_min"] | 0);
             }
-            // Pond Fill before the drain: a drain command in the same reply ends the fill.
+            // Pond Fill and Storage Tank Drain before the drain: a drain command in the
+            // same reply ends them.
             // Like the drain, only a new command (seq changed) is applied.
             uint32_t fseq = reply["fill"]["seq"] | fill.appliedSeq;
             if (fseq != fill.appliedSeq) {
@@ -593,6 +692,18 @@ void reportToServer() {
                     startFill(hours, REASON_FILL);
                 } else {
                     endFill(REASON_WEB);
+                }
+            }
+            uint32_t tseq = reply["tank_drain"]["seq"] | tankDrain.appliedSeq;
+            if (tseq != tankDrain.appliedSeq) {
+                tankDrain.appliedSeq = tseq;
+                saveTankDrain();
+                int minutes = reply["tank_drain"]["minutes"] | 0;
+                if ((reply["tank_drain"]["active"] | false)
+                    && minutes >= TANK_DRAIN_MIN_MIN && minutes <= TANK_DRAIN_MAX_MIN) {
+                    startTankDrain(minutes, REASON_TANK_DRAIN);
+                } else {
+                    endTankDrain(REASON_WEB);
                 }
             }
             // Drain: only a new command (seq changed) moves it, so a reboot never replays one
@@ -637,7 +748,7 @@ void handleFlush() {
         return;
     }
     if (pondValveMoving()) {
-        server.send(200, "application/json", "{\"ok\":false,\"error\":\"Pond Drain or Pond Fill is moving — try again shortly\"}");
+        server.send(200, "application/json", "{\"ok\":false,\"error\":\"Pond Drain, Pond Fill or Storage Tank Drain is moving — try again shortly\"}");
         return;
     }
     if (otherFilterBusy(f)) {
@@ -682,8 +793,8 @@ void connectWiFi() {
 
 // ── Setup / loop ──────────────────────────────────────────────────────────────
 void setup() {
-    // Drive relays off before anything else so the filter valves stay closed,
-    // the drain closes and Pond Fill opens.
+    // Drive relays off before anything else so the filter valves and Storage Tank
+    // Drain stay closed, the drain closes and Pond Fill opens.
     // pinMode first: on ESP32 core 3.x a digitalWrite before pinMode is ignored,
     // and the pin then defaults LOW (= relay ON, valve opens). The few µs of LOW
     // between these two calls is far too short for the relay to react.
@@ -697,6 +808,8 @@ void setup() {
     pinMode(FILL_A_PIN, OUTPUT);
     pinMode(FILL_B_PIN, OUTPUT);
     setFillDrive(true);           // both relays off — Pond Fill drives open
+    pinMode(TANK_DRAIN_PIN, OUTPUT);
+    digitalWrite(TANK_DRAIN_PIN, RELAY_OFF);   // relay off — tank drain closed
     pinMode(LED_BUILTIN_PIN, OUTPUT);
     pinMode(TANK_TOP_PIN, INPUT);
     pinMode(TANK_REFILL_PIN, INPUT);
@@ -738,6 +851,19 @@ void setup() {
         Serial.println("Pond Fill was closed — opening");
     }
 
+    // Storage Tank Drain always closes after a restart (any run ends). If it was open,
+    // log it and count it as moving so the other valves wait for it.
+    prefs.begin("tdrain", true);
+    bool tankDrainWasOpen = prefs.getBool("open", false);
+    tankDrain.appliedSeq  = prefs.getULong("seq", 0);
+    prefs.end();
+    if (tankDrainWasOpen) {
+        tankDrain.lastChangeMs = millis();
+        saveTankDrain();
+        queueEvent(TANK_DRAIN_INDEX, false, REASON_RESTART);
+        Serial.println("Storage Tank Drain was open — closing");
+    }
+
     // Start from the current tank readings rather than waiting out the debounce
     if (TANK_SENSORS) {
         for (LevelSensor* s : {&tank.top, &tank.refill}) {
@@ -762,6 +888,7 @@ void loop() {
     runTank();
     runDrain();
     runFill();
+    runTankDrain();
 
     bool online = WiFi.status() == WL_CONNECTED;
     digitalWrite(LED_BUILTIN_PIN, online ? HIGH : (millis() / 250) % 2);   // solid = online, blink = no WiFi
@@ -772,5 +899,6 @@ void loop() {
         runCycles();   // the report can take up to HTTP_TIMEOUT_MS — catch up on the timers
         runDrain();
         runFill();
+        runTankDrain();
     }
 }

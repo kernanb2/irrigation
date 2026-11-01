@@ -1,6 +1,6 @@
-# Unit E — Pre-filter Flush, Pond Drain and Pond Fill (ESP32 #2)
+# Unit E — Pre-filter Flush, Pond Drain, Pond Fill and Storage Tank Drain (ESP32 #2)
 
-A second ESP32 that controls four motorized ball valves: two flush (clean) the pre-filters on the line feeding the irrigation storage tank, one drains the pond, and one (Pond Fill, normally open) lets the drained water on to the tanks.
+A second ESP32 that controls five motorized ball valves: two flush (clean) the pre-filters on the line feeding the irrigation storage tank, one drains the pond, one (Pond Fill, normally open) lets the water on to the tank, and one (Storage Tank Drain, normally closed) empties the tank through an outlet near its bottom.
 
 | # | Web page name | Valve | Relay | GPIO |
 |---|---------------|-------|-------|------|
@@ -8,8 +8,9 @@ A second ESP32 that controls four motorized ball valves: two flush (clean) the p
 | 2 | Pondwater Pre-filter-2 | U.S. Solid ½" | Relay 2 | 27 |
 | 3 | Pond Drain             | BOKYWOX 2"    | Relays 3 + 4 | 25 + 33 |
 | 4 | Pond Fill              | BOKYWOX 2"    | Relays 5 + 6 | 32 + 13 |
+| 5 | Storage Tank Drain     | U.S. Solid 1" | Relay 7 | 23 |
 
-Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). Two level sensors on the tank the drain fills close it when the tank is full and reopen it when the level drops (see **Tank Level Sensors**). Pond Fill opens the drain fully and closes Pond Fill for 1–24 hours (see **Pond Fill**). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
+Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). Two level sensors on the tank the drain fills close it when the tank is full and reopen it when the level drops (see **Tank Level Sensors**). Pond Fill opens the drain fully and closes Pond Fill for 1–24 hours (see **Pond Fill**). Storage Tank Drain does the same, then opens the tank drain for 10–120 minutes (see **Storage Tank Drain**). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
 ---
 
@@ -19,9 +20,10 @@ Each filter has its own independent flush cycle. The Pond Drain opens, closes, o
 |------|-------|
 | ESP32 dev board | Arduino IDE board: **ESP32 Dev Module** |
 | U.S. Solid **USS-MSV00202** ×2 (one per filter) | 1/2" stainless (SS304) motorized ball valve, full port, 9–24V AC/DC, **3-wire**, manual override. The actuator has internal limit switches, so it stops on its own at fully open / fully closed and draws almost nothing once in position. Travel time is about 5–8 s. |
+| U.S. Solid **USS-MSV00213** (Storage Tank Drain) | 1" motorized ball valve, **3-wire** (blue, red, yellow) — expected to work like the ½" filter valves; confirm on the bench. |
 | 12V 3A power supply | Powers everything |
 | BOKYWOX **A150-T50-S2-CR2-01-DC12V** (Pond Drain and Pond Fill, one each) | Tonhe A150 actuator (15 N·m) on a 2" SS304 2-way ball valve. **2-wire reverse polarity** (CR2-01): red + / black − closes, black + / red − opens. Stops itself at each end; if power is lost it stays where it is. ≤1A at 12V while moving, ≤11 s full travel, manual override. [Datasheet](http://www.motorized-valve.com/pdf/A150-motorized-valve.pdf) |
-| 2-relay module, Songle **SRD-05VDC-SL-C** ×3 | Module 1: relays 1–2 (filters). Module 2: relays 3–4 (Pond Drain). Module 3: relays 5–6 (Pond Fill). 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
+| 2-relay module, Songle **SRD-05VDC-SL-C** ×3 | Module 1: relays 1–2 (filters). Module 2: relays 3–4 (Pond Drain). Module 3: relays 5–6 (Pond Fill). Module 4: relay 7 (Storage Tank Drain), relay 8 spare. 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
 | LM2596 buck converter (Amazon FNSKU X004ZQRESH) | 12V → 5V for the ESP32 and relay coils |
 | Blade fuses + inline holders | See fusing below |
 | 2 non-contact level sensors (Taidacent **XKC-Y25-V**, 4-wire) | The spare two of the four on the tank. The other two stay on the XKC-C352 controller, which runs the irrigation pump and powers its sensors at 12V. The sensor works on 5–24V, and Unit E powers its two from the 5V rail so the signal can never exceed 5V. Brown +, blue −, yellow signal, black output-mode select. Don't connect Unit E's sensors to the controller's terminals: its 0V isn't Unit E's GND. |
@@ -69,7 +71,8 @@ Why it's wired this way:
 12V rail ── FUSE F2 (1A) ───────────┼── Valve 1 RED + Relay 1 COM  (filter 1 valve power)
 12V rail ── FUSE F3 (1A) ───────────┼── Valve 2 RED + Relay 2 COM  (filter 2 valve power)
 12V rail ── FUSE F4 (2A) ───────────┼── Relay 3 NC + Relay 4 NO     (Pond Drain power)
-12V rail ── FUSE F5 (2A) ───────────┴── Relay 5 NC + Relay 6 NO     (Pond Fill power)
+12V rail ── FUSE F5 (2A) ───────────┼── Relay 5 NC + Relay 6 NO     (Pond Fill power)
+12V rail ── FUSE F6 (1A) ───────────┴── Tank drain RED + Relay 7 COM (Storage Tank Drain power)
 
 12V supply (−) ── Common GND rail ── LM2596 IN− / OUT−, ESP32 GND, relay GNDs, valve 1 + 2 BLUE,
                                      Relay 3 NO + Relay 4 NC, Relay 5 NO + Relay 6 NC
@@ -193,6 +196,21 @@ Same valve and same wiring idea as the Pond Drain, but with **red and black swap
 
 **Bench test first**, as for the drain: +12V on black and GND on red should open it. If it's the other way round, swap red and black at the relays. If the 12V supply dies, Pond Fill stays where it was.
 
+### Relay 7 → Storage Tank Drain (3-wire, normally closed)
+
+The USS-MSV00213 has the same three wires as the filter valves and is wired the same way, on a fourth relay module (remove the JD-VCC jumper as before; **IN1 → GPIO 23**, IN2 spare).
+
+| From | To |
+|------|----|
+| +12V, **after F6 (1A)** | Relay 7 **COM** and valve **red** |
+| Relay 7 **NO** | Valve **yellow** |
+| Relay 7 **NC** | Nothing |
+| Common GND | Valve **blue** |
+
+Relay off = yellow unpowered = **closed**, so it closes after any crash, restart or ESP32 power loss. If the 12V supply itself dies, it stays where it was.
+
+**Bench test first:** with red on +12V and blue on GND, touching yellow to +12V should open it and removing it should close it. Time a full swing; if it's longer than about 13 s, raise `TANK_DRAIN_TRAVEL_MS`.
+
 ### Tank Level Sensors → ESP32
 
 The tank the Pond Drain fills has four sensors. The XKC-C352 controller uses two of them to run the irrigation pump (on when full, off at its low mark). Unit E uses the **top** sensor and **the one below it**, so the tank starts refilling before the pump stops.
@@ -235,8 +253,9 @@ GND rail → ESP32 GND
 | F3 | 12V feed to valve 2 red + Relay 2 COM | **1A** | Same as F2, for valve 2. A separate fuse means a fault on one valve doesn't take out the other. |
 | F4 | 12V feed to Relay 3 NC + Relay 4 NO (Pond Drain) | **2A** | The A150 motor draws up to 1A while moving, with a short startup surge. A 1A fuse could blow on the surge. |
 | F5 | 12V feed to Relay 5 NC + Relay 6 NO (Pond Fill) | **2A** | Same valve as the drain. |
+| F6 | 12V feed to tank drain red + Relay 7 COM (Storage Tank Drain) | **1A** | Small U.S. Solid actuator like the filter valves. Check the valve's label for its current; raise to 2A if it's over ~0.5A. |
 
-The six relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together draw about 0.35A from the 12V side through the LM2596, which is covered by F1.
+The seven relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) together draw about 0.4A from the 12V side through the LM2596, which is covered by F1.
 
 ### Power budget (12V 3A supply)
 
@@ -244,9 +263,10 @@ The six relay coils (~70mA each at 5V) and the ESP32 (~250mA peak at 5V) togethe
 |------|----------------|
 | Filter valve 1 or 2, while moving | ~0.4A each |
 | Pond Drain or Pond Fill, while moving | ≤1A each (surge maybe 1.5A) |
-| ESP32 + 6 relay coils | ~0.35A |
+| Storage Tank Drain, while moving | ~0.4A (check its label) |
+| ESP32 + 7 relay coils | ~0.4A |
 
-To stay well inside 3A, the **firmware never moves the Pond Drain and Pond Fill at the same time, never starts either while a filter valve is moving, and never starts a flush while either is moving**. The one exception is power-up: with all relays off the drain drives closed and Pond Fill drives open together (about 2.4A with the electronics, filter valves stay closed). A filter valve counts as moving for 10 s after it switches (`FILTER_TRAVEL_MS`). Closing a filter valve is never delayed. So the worst case in practice is about 1.8A. A flush or drain move may start a few seconds late because of this.
+To stay well inside 3A, the **firmware never moves the Pond Drain and Pond Fill at the same time, never starts either while a filter valve or the Storage Tank Drain is moving, and never starts a flush while any of them is moving**. The tank drain opens only once the drain and Pond Fill have stopped moving. The one exception is power-up: with all relays off the drain drives closed and Pond Fill drives open together (about 2.4A with the electronics, filter valves stay closed). A filter valve counts as moving for 10 s after it switches (`FILTER_TRAVEL_MS`). Closing a filter valve is never delayed. So the worst case in practice is about 1.8A. A flush or drain move may start a few seconds late because of this.
 
 ---
 
@@ -261,10 +281,11 @@ To stay well inside 3A, the **firmware never moves the Pond Drain and Pond Fill 
 | 33 | Relay 4 IN (Pond Drain black) | Active LOW. See the relay table above |
 | 32 | Relay 5 IN (Pond Fill black) | Active LOW. See the relay table above |
 | 13 | Relay 6 IN (Pond Fill red) | Active LOW. See the relay table above |
+| 23 | Relay 7 IN (Storage Tank Drain) | Active LOW. LOW = OPEN, HIGH = CLOSED |
 | 34 | Tank top sensor | Input only. HIGH = dry, LOW = water |
 | 35 | Tank refill sensor (second from top) | Input only. HIGH = dry, LOW = water |
 
-GPIOs 13/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves stay closed, the drain drives closed and Pond Fill drives open.
+GPIOs 13/23/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves and Storage Tank Drain stay closed, the drain drives closed and Pond Fill drives open.
 
 ---
 
@@ -323,6 +344,15 @@ Pond Fill is **normally open**: drained water goes on to the tanks. The **Pond F
 - The board runs the timer itself, so a run ends on time even if WiFi or the server is down.
 - **After a restart or power loss** any run ends: Pond Fill opens (logged "opened after restart" if it was closed) and the drain closes, as usual. Like the drain, a command is applied only once (`fill_cmd_seq`), so a reboot never restarts a run.
 - Step-by-step diagram: [pond-fill-flow.md](pond-fill-flow.md).
+
+### Storage Tank Drain (Web Page)
+
+The **Storage Tank Drain** card has **Drain Tank** / **Stop draining** and a **Run time** of 10–120 minutes (pick it before starting).
+
+- **Drain Tank:** the Pond Drain opens **fully**, then Pond Fill **closes**, so the spring water goes back into the pond instead of the tank. Once both have finished moving, the tank drain **opens**. The card counts down the time left.
+- **End** (run time up, Stop pressed, or any **Pond Drain** button pressed): the tank drain **closes** first, then Pond Fill opens and the Pond Drain goes back to its last setting, as at the end of Pond Fill.
+- Pond Fill and Storage Tank Drain can run together; Pond Fill only opens again once both have ended.
+- **After a restart** the tank drain closes (logged "closed after restart" if it was open) and the run ends. Commands use `tank_drain_cmd_seq`, so a reboot never restarts a run.
 
 ### Tank Level Control
 
@@ -408,6 +438,7 @@ The valve **always** closes when the flush timer ends. `MAX_FLUSH_SEC` caps manu
 
 ## Not Yet Done
 
+- Storage Tank Drain hardware: fourth relay module, F6 fuse, bench test (confirm blue/red/yellow work like the filter valves) and time a full swing. Firmware and web card are done (2026-11-01), untested.
 - Pond Fill hardware: third 2-relay module, F5 fuse, bench test (+12V on black opens it). Firmware and web card are done (2026-10-29), untested.
 - Pond Drain hardware: second 2-relay module (on order), F4 fuse, F1 → 3A, bench test, and timing a full open to calibrate `DRAIN_TRAVEL_MS`. Firmware and web card are done.
 - Tank level sensors: test each sensor's output, wire the dividers to GPIO 34/35, and check the card shows the right tank level.

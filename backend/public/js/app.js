@@ -1,6 +1,7 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
 let fillHoursChoice = null;   // Pond Fill run time picked on the card (sent with Start)
+let tankDrainMinutesChoice = null;   // Storage Tank Drain run time picked on the card
 let pondDiagramOpen = (() => { try { return localStorage.getItem('pondDiagramOpen') !== 'false'; } catch { return true; } })();
 const POLL_MS = 15000;
 
@@ -50,8 +51,9 @@ async function fetchAll() {
             zoneFollowTimer = setTimeout(() => { zoneFollowTimer = null; fetchAll(); }, 2000);
         }
 
-        // Follow the drain and Pond Fill while they move (one timer at a time)
-        if ((filter?.drain?.reported?.moving || filter?.fill?.reported?.moving) && !drainFollowTimer) {
+        // Follow the drain, Pond Fill and Storage Tank Drain while they move (one timer at a time)
+        if ((filter?.drain?.reported?.moving || filter?.fill?.reported?.moving
+             || filter?.tank_drain?.reported?.moving) && !drainFollowTimer) {
             drainFollowTimer = setTimeout(() => { drainFollowTimer = null; fetchAll(); }, 2000);
         }
 
@@ -154,7 +156,8 @@ function renderExtraUnits() {
       ${filter ? pondDiagram() : ''}
       ${(filter?.filters || []).map(filterCard).join('')}
       ${filter?.drain ? drainCard(filter.drain) : ''}
-      ${filter?.fill ? fillCard(filter.fill) : ''}`;
+      ${filter?.fill ? fillCard(filter.fill) : ''}
+      ${filter?.tank_drain ? tankDrainCard(filter.tank_drain) : ''}`;
 }
 
 function drainCard(d) {
@@ -177,10 +180,11 @@ function drainCard(d) {
     } else {
         detail = pos === 0 ? 'Closed' : pos === 100 ? 'Fully open' : `Partly open — ${pos}%`;
     }
-    const filling = online && filter.fill?.reported?.active;
+    const mode    = pondMode();
+    const filling = online && mode;
     const tank    = online && got?.tank;
     if (filling && !got.moving && !pending) {
-        detail = 'Fully open — Pond Fill running (tank sensors ignored)';
+        detail = `Fully open — ${mode} running (tank sensors ignored)`;
     } else if (tank?.full && !got.moving) {
         const back = got.user_pct === 100 ? 'fully open' : got.user_pct + '% open';
         detail = tank.fault
@@ -224,10 +228,12 @@ function drainCard(d) {
 }
 
 async function setDrain(pct) {
-    // Opening drains the pond — make sure it's intended. During Pond Fill any drain button ends the fill.
+    // Opening drains the pond — make sure it's intended. During Pond Fill or Storage Tank Drain
+    // any drain button ends the run.
     const where = pct === 0 ? 'closed' : pct === 100 ? 'fully open' : pct + '% open';
-    const question = filter?.fill?.reported?.active
-        ? `This ends Pond Fill: Pond Fill opens, then the Pond Drain goes to ${where}. Continue?`
+    const mode  = pondMode();
+    const question = mode
+        ? `This ends ${mode}: ${mode === 'Storage Tank Drain' ? 'the tank drain closes and ' : ''}Pond Fill opens, then the Pond Drain goes to ${where}. Continue?`
         : pct > 0 ? `Open the Pond Drain ${pct === 100 ? 'fully' : 'to ' + pct + '%'}?` : null;
     if (question && !confirm(question)) {
         renderExtraUnits();
@@ -257,6 +263,7 @@ function fillCard(p) {
     const pending = online && got && got.seq !== want.seq;
     const active  = online && got?.active;
     const isOpen  = got ? got.valve === 'open' : true;
+    const tankDraining = online && filter.tank_drain?.reported?.active;
     if (fillHoursChoice === null) fillHoursChoice = want.hours;
 
     let detail;
@@ -267,10 +274,12 @@ function fillCard(p) {
     } else if (pending) {
         detail = 'Sending to Unit E…';
     } else if (got.moving) {
-        detail = active ? 'Starting — opening the Pond Drain, then closing Pond Fill…'
-                        : 'Ending — opening Pond Fill, then the Pond Drain goes back to its setting…';
+        detail = active || tankDraining ? 'Starting — opening the Pond Drain, then closing Pond Fill…'
+                                        : 'Ending — opening Pond Fill, then the Pond Drain goes back to its setting…';
     } else if (active) {
         detail = `Filling the pond — ${formatDuration(got.remaining_s)} left`;
+    } else if (tankDraining) {
+        detail = 'Closed — Storage Tank Drain running (spring water goes back into the pond)';
     } else {
         detail = 'Open — water goes on to the storage tank';
     }
@@ -306,17 +315,91 @@ function fillCard(p) {
 async function startFill() {
     const h = fillHoursChoice;
     if (!confirm(`Fill the pond for ${h} hour${h > 1 ? 's' : ''}? The Pond Drain opens fully, then Pond Fill closes.`)) return;
-    await fillCmd({ hours: h });
+    await unitECmd('/api/fill.php', { hours: h });
 }
 
 async function stopFill() {
     if (!confirm('Stop Pond Fill? Pond Fill opens, then the Pond Drain goes back to its last setting.')) return;
-    await fillCmd({ stop: true });
+    await unitECmd('/api/fill.php', { stop: true });
 }
 
-async function fillCmd(body) {
+// Storage Tank Drain: normally closed. A run opens the Pond Drain fully and closes Pond
+// Fill (so no spring water reaches the tank), then opens this valve.
+function tankDrainCard(t) {
+    const want    = t.desired;
+    const got     = t.reported;
+    const online  = filter.online;
+    const pending = online && got && got.seq !== want.seq;
+    const active  = online && got?.active;
+    const isOpen  = online && got?.valve === 'open';
+    if (tankDrainMinutesChoice === null) tankDrainMinutesChoice = want.minutes;
+
+    let detail;
+    if (!online) {
+        detail = 'Unit E offline' + (filter.last_seen ? ` — last seen ${new Date(filter.last_seen).toLocaleString()}` : '');
+    } else if (!got) {
+        detail = 'Waiting for Unit E…';
+    } else if (pending) {
+        detail = 'Sending to Unit E…';
+    } else if (got.moving) {
+        detail = !active ? 'Ending — closing the tank drain, then Pond Fill opens…'
+               : isOpen  ? 'Opening the tank drain…'
+               : 'Starting — opening the Pond Drain and closing Pond Fill, then the tank drain opens…';
+    } else if (active) {
+        detail = `Draining the tank — ${formatDuration(got.remaining_s)} left`;
+    } else {
+        detail = 'Closed';
+    }
+
+    const busy    = !online || !got || pending;
+    const options = Array.from({ length: 12 }, (_, i) => (i + 1) * 10)
+        .map(m => `<option value="${m}" ${m === tankDrainMinutesChoice ? 'selected' : ''}>${m} minutes</option>`).join('');
+    const badge   = isOpen ? (got.moving ? 'Opening' : 'Open') : got?.moving && !active ? 'Closing' : 'Closed';
+
+    return `
+    <div class="zone-card special ${isOpen ? 'valve-open' : ''}" id="tank-drain">
+      <div class="zone-header">
+        <div>
+          <div class="zone-name">Storage Tank Drain</div>
+          <div class="zone-id">1" valve — normally closed</div>
+        </div>
+        <span class="valve-badge ${isOpen ? 'open' : 'closed'}">${badge}</span>
+      </div>
+      <div class="card-info"><div class="zone-sensors">${detail}</div></div>
+      <div class="zone-actions">
+        <button class="${active ? 'btn-close' : 'btn-open'}" onclick="${active ? 'stopTankDrain()' : 'startTankDrain()'}" ${busy ? 'disabled' : ''}>
+          ${active ? 'Stop draining' : 'Drain Tank'}
+        </button>
+      </div>
+      <div class="card-fields">
+        <label class="card-field">Run time
+          <select onchange="tankDrainMinutesChoice = parseInt(this.value)" ${busy || active ? 'disabled' : ''}>${options}</select>
+        </label>
+      </div>
+    </div>`;
+}
+
+async function startTankDrain() {
+    const m = tankDrainMinutesChoice;
+    if (!confirm(`Drain the storage tank for ${m} minutes? The Pond Drain opens fully and Pond Fill closes first, then the tank drain opens.`)) return;
+    await unitECmd('/api/tank_drain.php', { minutes: m });
+}
+
+async function stopTankDrain() {
+    if (!confirm('Stop draining the tank? The tank drain closes, then Pond Fill opens and the Pond Drain goes back to its last setting.')) return;
+    await unitECmd('/api/tank_drain.php', { stop: true });
+}
+
+// Which run is holding the Pond Drain open and Pond Fill closed, if any
+function pondMode() {
+    if (!filter?.online) return null;
+    return filter.tank_drain?.reported?.active ? 'Storage Tank Drain'
+         : filter.fill?.reported?.active       ? 'Pond Fill' : null;
+}
+
+async function unitECmd(path, body) {
     try {
-        const res  = await apiFetch('/api/fill.php', {
+        const res  = await apiFetch(path, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -331,12 +414,15 @@ async function fillCmd(body) {
 }
 
 // Live plumbing picture: pond → Pond Drain → T (spring water joins) → Pond Fill →
-// pre-filters (in parallel) → storage tank → pump → Orival auto filter → irrigation zones. Pipes with
+// pre-filters (in parallel) → storage tank → pump → Orival auto filter → irrigation zones,
+// plus the Storage Tank Drain near the bottom of the tank. Pipes with
 // water moving in them are blue and animated, so anyone can see where it's going.
 function pondDiagram() {
     const online   = filter.online;
     const d        = online ? filter.drain?.reported : null;
     const p        = online ? filter.fill?.reported  : null;
+    const td       = online ? filter.tank_drain?.reported : null;
+    const tankDrainOpen = td?.valve === 'open';
     const tank     = d?.tank;
     const drainPct = d?.position_pct ?? 0;
     const drainOpen = drainPct > 0;
@@ -360,6 +446,8 @@ function pondDiagram() {
     const fillState  = !p ? 'unknown' : p.moving ? 'moving' : fillOpen ? 'open' : 'closed';
     const drainText  = !d ? '—' : d.moving ? 'moving' : drainPct === 0 ? 'closed' : drainPct === 100 ? 'open' : `${drainPct}% open`;
     const fillText   = !p ? '—' : p.moving ? (fillOpen ? 'opening' : 'closing') : p.valve;
+    const tdState    = !td ? 'unknown' : td.moving && (tankDrainOpen || !td.active) ? 'moving' : tankDrainOpen ? 'open' : 'closed';
+    const tdText     = !td ? '—' : tdState === 'moving' ? (tankDrainOpen ? 'opening' : 'closing') : tdState;
     const flushState = i => !online ? 'unknown' : flushing[i] ? 'open' : 'closed';
     const sensor     = (y, wet) => `<circle class="pd-sensor ${!tank ? 'unknown' : wet ? 'wet' : ''}" cx="700" cy="${y}" r="5"/>`;
     const waterTop   = !tank ? 215 : tank.top_wet ? 180 : tank.refill_wet ? 205 : 235;
@@ -367,8 +455,12 @@ function pondDiagram() {
     let caption;
     if (!online) {
         caption = 'Unit E is offline, so the valve positions are unknown.';
-    } else if (d?.moving || p?.moving) {
+    } else if (d?.moving || p?.moving || td?.moving) {
         caption = 'A valve is moving — the picture updates when it stops.';
+    } else if (tankDrainOpen) {
+        caption = (td.active ? `Storage Tank Drain is running (${formatDuration(td.remaining_s)} left). ` : '')
+            + 'The storage tank is emptying through its drain. Pond Fill is closed, '
+            + 'so the spring water flows back through the open Pond Drain into the pond.';
     } else if (drainOpen && !fillOpen) {
         caption = (p.active ? `Pond Fill is running (${formatDuration(p.remaining_s)} left). ` : '')
             + "Pond Fill is closed, so the spring water can't reach the storage tank. "
@@ -388,7 +480,7 @@ function pondDiagram() {
     <details class="pond-diagram" ${pondDiagramOpen ? 'open' : ''} ontoggle="togglePondDiagram(this)">
       <summary>How the pond valves work</summary>
       <div class="pd-scroll">
-        <svg viewBox="0 0 890 300" role="img" aria-label="Pond and storage tank plumbing">
+        <svg viewBox="0 0 890 312" role="img" aria-label="Pond and storage tank plumbing">
           ${pipe('M95 90 V140 H300', pondFlows, !fillOpen)}
           ${pipe('M300 20 V140', springFlows)}
           ${pipe('M300 140 H420', toTank)}
@@ -398,6 +490,7 @@ function pondDiagram() {
           ${pipe('M485 83 V40', toTank && flushing[0])}
           ${pipe('M485 197 V245', toTank && flushing[1])}
           ${pipe('M665 248 V130 H880', false)}
+          ${pipe('M580 262 H505', online && tankDrainOpen)}
 
           <path class="pd-water" d="M20 30 H170 V70 Q170 90 150 90 H40 Q20 90 20 70 Z"/>
           <text class="pd-label" x="95" y="64" text-anchor="middle">Pond</text>
@@ -429,6 +522,10 @@ function pondDiagram() {
           <rect class="pd-box" x="650" y="248" width="30" height="20" rx="3"/>
           <text class="pd-note" x="645" y="262" text-anchor="end">pump</text>
           <text class="pd-label" x="640" y="292" text-anchor="middle">Storage tank</text>
+          ${valve(548, 262, tdState)}
+          <text class="pd-label" x="548" y="290" text-anchor="middle">Tank Drain</text>
+          <text class="pd-note"  x="548" y="305" text-anchor="middle">${tdText}</text>
+          <text class="pd-note"  x="500" y="266" text-anchor="end">outlet</text>
           <rect class="pd-box" x="690" y="117" width="80" height="26" rx="4"/>
           <text class="pd-note" x="730" y="134" text-anchor="middle">Auto filter</text>
           <text class="pd-label" x="730" y="108" text-anchor="middle">Orival ORG 3"</text>
@@ -442,6 +539,7 @@ function pondDiagram() {
         <li><b>Pond Fill</b> sits after the T where the spring water joins. Normally open, so water goes on to the tank. <b>Start Pond Fill</b> opens Pond Drain and closes Pond Fill, so the spring water runs back up into the pond.</li>
         <li><b>Pre-filters</b> are in parallel just before the tank. Each one flushes on its own cycle.</li>
         <li><b>Storage tank</b> level sensors close Pond Drain when the tank is full. The submersible pump feeds the irrigation zones.</li>
+        <li><b>Storage Tank Drain</b> empties the tank through an outlet near its bottom. <b>Drain Tank</b> opens Pond Drain and closes Pond Fill first, so no spring water flows into the tank while it drains.</li>
         <li><b>Auto filter</b> (Orival ORG/B-030-LE) cleans the pumped water before the zones. Its Omnitrol 300 controller flushes the screen on its own.</li>
       </ul>
     </details>`;
