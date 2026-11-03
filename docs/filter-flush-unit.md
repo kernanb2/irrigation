@@ -8,7 +8,7 @@ A second ESP32 that controls five motorized ball valves: two flush (clean) the p
 | 2 | Pondwater Pre-filter-2 | U.S. Solid ½" | Relay 2 | 27 |
 | 3 | Pond Drain             | BOKYWOX 2"    | Relays 3 + 4 | 25 + 33 |
 | 4 | Pond Fill              | BOKYWOX 2"    | Relays 5 + 6 | 32 + 13 |
-| 5 | Storage Tank Drain     | U.S. Solid 1" | Relay 7 | 23 |
+| 5 | Storage Tank Drain     | U.S. Solid 1" | Relay 7 | 22 |
 
 Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). Two level sensors on the tank the drain fills close it when the tank is full and reopen it when the level drops (see **Tank Level Sensors**). Pond Fill opens the drain fully and closes Pond Fill for 1–24 hours (see **Pond Fill**). Storage Tank Drain does the same, then opens the tank drain for 10–120 minutes (see **Storage Tank Drain**). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
@@ -61,6 +61,14 @@ Why it's wired this way:
 ---
 
 ## Wiring
+
+### DIN Rail Layout (November 2026)
+
+Unit E is being rewired onto colour-coded DIN rail terminal blocks, with one Songle 8-relay module (K1–K8 = relays 1–8, same GPIOs) in place of the 2-relay modules. The full diagram, the block-by-block rail map and the stage-by-stage test order are in [unit-e-wiring.html](unit-e-wiring.html) (open it in a browser).
+
+![Unit E wiring](unit-e-wiring.svg)
+
+Block colours: **red** +12V after F1 (bridged), **grey** one fused 12V feed per fuse F2–F6 (not bridged), **green** GND (bridged), **black** 5V (bridged), **yellow** relay NO → 3-wire valve yellow, **blue** 2" valve motor leads. Every negative goes to the green bus. The sections below describe the same circuits on the older 2-relay modules.
 
 ### Power
 
@@ -198,7 +206,7 @@ Same valve and same wiring idea as the Pond Drain, but with **red and black swap
 
 ### Relay 7 → Storage Tank Drain (3-wire, normally closed)
 
-The USS-MSV00213 has the same three wires as the filter valves and is wired the same way, on a fourth relay module (remove the JD-VCC jumper as before; **IN1 → GPIO 23**, IN2 spare).
+The USS-MSV00213 has the same three wires as the filter valves and is wired the same way, on a fourth relay module (remove the JD-VCC jumper as before; **IN1 → GPIO 22**, IN2 spare). It was on GPIO 23 at first, but that pin on this ESP32 is damaged: driven LOW it read 1.8V with nothing connected, so the relay never turned on (found 2026-11-01).
 
 | From | To |
 |------|----|
@@ -217,7 +225,7 @@ Relay off = yellow unpowered = **closed**, so it closes after any crash, restart
 
 | # | Where | Should read | If it doesn't |
 |---|-------|-------------|---------------|
-| 1 | ESP32 GPIO 23 | ≈0V draining, 3.3V idle | Firmware isn't driving it, or the wire is on the wrong pin (labelled D23 or 23) |
+| 1 | ESP32 GPIO 22 | ≈0V draining, 3.3V idle | Firmware isn't driving it, or the wire is on the wrong pin (labelled D22 or 22). If it reads well above 0V with the IN1 wire removed, the pin is damaged (as GPIO 23 was) |
 | 2 | Module 4 IN header, VCC | 3.3V; channel 1 LED lit | VCC isn't on the ESP32's 3V3. LED lit but no click: check point 3 |
 | 3 | Module 4 JD-VCC | 5.0V; relay clicks | Jumper must be off, JD-VCC on the 5V rail, JD-GND on GND |
 | 4 | F6 output | 12V | Fuse blown or not seated. If it blew, look for yellow or red shorted to blue |
@@ -297,11 +305,11 @@ To stay well inside 3A, the **firmware never moves the Pond Drain and Pond Fill 
 | 33 | Relay 4 IN (Pond Drain black) | Active LOW. See the relay table above |
 | 32 | Relay 5 IN (Pond Fill black) | Active LOW. See the relay table above |
 | 13 | Relay 6 IN (Pond Fill red) | Active LOW. See the relay table above |
-| 23 | Relay 7 IN (Storage Tank Drain) | Active LOW. LOW = OPEN, HIGH = CLOSED |
+| 22 | Relay 7 IN (Storage Tank Drain) | Active LOW. LOW = OPEN, HIGH = CLOSED |
 | 34 | Tank top sensor | Input only. HIGH = dry, LOW = water |
 | 35 | Tank refill sensor (second from top) | Input only. HIGH = dry, LOW = water |
 
-GPIOs 13/23/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves and Storage Tank Drain stay closed, the drain drives closed and Pond Fill drives open.
+GPIOs 13/22/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves and Storage Tank Drain stay closed, the drain drives closed and Pond Fill drives open.
 
 ---
 

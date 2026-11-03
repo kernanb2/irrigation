@@ -1,0 +1,503 @@
+<title>Unit E Wiring</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one full schematic sheet, then the DIN rail map and the build-and-test order */
+:root {
+  --bg: #f3f5f4; --panel: #ffffff; --fg: #1d2420; --muted: #5d6a63; --line: #c9d1cc; --box: #e7ece9; --relay: #dfe6e2;
+  --w12: #c62828; --wyel: #b88a00; --wblue: #1f5fbf; --wgnd: #2e8b57; --w5: #d26a00; --w33: #b5179e; --wsig: #6a4bc4;
+  --note-bg: #e8eefb; --note-fg: #1f3d7a; --warn-bg: #fff4dc; --warn-fg: #6b4a00;
+  --b-red: #d64545; --b-grey: #a4aaa7; --b-green: #2e8b57; --b-black: #26292b; --b-yellow: #e8c547; --b-blue: #2f6fd6;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141917; --panel: #1c2320; --fg: #e4ebe7; --muted: #9aa8a0; --line: #34403a; --box: #252e2a; --relay: #2c3631;
+  --w12: #ff6b6b; --wyel: #f2c94c; --wblue: #6aa5ff; --wgnd: #5fd391; --w5: #ffa04d; --w33: #f07ad8; --wsig: #a58cff;
+  --note-bg: #1c2a44; --note-fg: #b9cdf5; --warn-bg: #3a2f12; --warn-fg: #f6d58a; --b-black: #0b0c0d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141917; --panel: #1c2320; --fg: #e4ebe7; --muted: #9aa8a0; --line: #34403a; --box: #252e2a; --relay: #2c3631;
+  --w12: #ff6b6b; --wyel: #f2c94c; --wblue: #6aa5ff; --wgnd: #5fd391; --w5: #ffa04d; --w33: #f07ad8; --wsig: #a58cff;
+  --note-bg: #1c2a44; --note-fg: #b9cdf5; --warn-bg: #3a2f12; --warn-fg: #f6d58a; --b-black: #0b0c0d; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 48px; }
+main { max-width: 1100px; margin: 0 auto; display: grid; gap: 22px; }
+h1 { font-size: 1.6rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.15rem; margin: 0 0 8px; }
+p { margin: 0; max-width: 72ch; }
+.sub { color: var(--muted); }
+.note { border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; background: var(--note-bg); color: var(--note-fg); }
+.note.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.sheet svg { display: block; min-width: 1100px; width: 100%; height: auto; }
+svg text { font-family: var(--mono); font-size: 12.5px; fill: var(--fg); }
+svg .m { fill: var(--muted); font-size: 11.5px; }
+svg .h { font-family: var(--sans); font-weight: 600; font-size: 13.5px; }
+svg .pin, svg .tl { font-size: 11px; }
+svg .tl { fill: var(--muted); }
+svg .pl { font-size: 11px; font-weight: 600; fill: var(--muted); }
+svg .fl { font-size: 11px; font-weight: 600; }
+svg .box { fill: var(--box); stroke: var(--muted); stroke-width: 1.4; }
+svg .relay { fill: var(--relay); stroke: var(--line); stroke-width: 1.2; }
+svg .term { fill: var(--panel); stroke: var(--fg); stroke-width: 1.4; }
+svg .fuse { fill: var(--panel); stroke: var(--fg); stroke-width: 1.4; }
+svg .w { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+svg .w12 { stroke: var(--w12); } svg .wy { stroke: var(--wyel); } svg .wb { stroke: var(--wblue); }
+svg .wg { stroke: var(--wgnd); } svg .w5 { stroke: var(--w5); } svg .w33 { stroke: var(--w33); } svg .ws { stroke: var(--wsig); }
+svg .d-w12 { fill: var(--w12); } svg .d-w5 { fill: var(--w5); }
+svg .blk { stroke: var(--fg); stroke-width: 1; }
+svg .b-red { fill: var(--b-red); } svg .b-grey { fill: var(--b-grey); } svg .b-green { fill: var(--b-green); }
+svg .b-black { fill: var(--b-black); } svg .b-yellow { fill: var(--b-yellow); } svg .b-blue { fill: var(--b-blue); }
+svg .bl { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+svg .bl-grey, svg .bl-yellow { fill: #1d2420; }
+svg .gtag { fill: var(--b-green); } svg .gt { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+svg .rtag { fill: var(--b-red); } svg .rt { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 18px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+.tbl { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.k { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; border: 1px solid var(--fg); background: var(--c); }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.groups > div { min-width: 0; }
+.groups h3 { font-size: .95rem; margin: 0 0 6px; }
+ol.steps { margin: 0; padding-left: 1.4em; display: grid; gap: 10px; max-width: 80ch; }
+ol.steps b { font-weight: 600; }
+.v { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+</style>
+
+<main>
+  <header style="display:grid;gap:6px">
+    <h1>Unit E Wiring</h1>
+    <p class="sub">The complete Unit E wiring: 12V supply, LM2596, ESP32, Songle 8-relay module and all five valves, wired through color-coded DIN rail terminal blocks.</p>
+  </header>
+
+  <div class="note">
+    <strong>Grounds: yes, every negative goes back to one place.</strong>
+    <p>The green blocks (Gn1–Gn5) are bridged into one ground bus. The 12V supply −, the LM2596, the ESP32, the relay module and every valve's return land there. The 5V rail shares that ground through the LM2596. The 3.3V rail is made on the ESP32 board itself, so its negative is the ESP32's GND. Unit E has no 9V rail; that's Unit A, which is a separate box with its own ground. Two things must <b>not</b> join this bus: the XKC-C352 pump controller's 0V, and the Omnitrol's dry contacts, which have no ground of their own.</p>
+  </div>
+
+  <div class="sheet">
+<svg viewBox="0 0 1300 1000" role="img" aria-label="Complete Unit E wiring: 12V supply, F1, red 12V blocks, LM2596 to black 5V blocks, ESP32 GPIOs to an 8-relay module, fused grey blocks to each relay, and the five valves through yellow and blue blocks; all grounds to green blocks.">
+<rect class="box" x="30" y="30" width="160" height="80" rx="6"/>
+<text x="44" y="56" class="h">12V 3A supply</text>
+<text x="176" y="60">+</text>
+<text x="176" y="96">−</text>
+<path class="w w12" d="M190 55 H220"/>
+<rect class="fuse" x="220" y="45" width="50" height="20" rx="3"/>
+<text x="245" y="59" class="fl" text-anchor="middle">F1 3A</text>
+<path class="w w12" d="M270 55 H470"/>
+<rect class="blk b-red" x="283" y="44" width="34" height="22" rx="3"/>
+<text x="300" y="59" class="bl bl-red" text-anchor="middle">R1</text>
+<rect class="blk b-red" x="323" y="44" width="34" height="22" rx="3"/>
+<text x="340" y="59" class="bl bl-red" text-anchor="middle">R2</text>
+<rect class="blk b-red" x="363" y="44" width="34" height="22" rx="3"/>
+<text x="380" y="59" class="bl bl-red" text-anchor="middle">R3</text>
+<rect class="blk b-red" x="403" y="44" width="34" height="22" rx="3"/>
+<text x="420" y="59" class="bl bl-red" text-anchor="middle">R4</text>
+<text x="300" y="30" class="m">RED R1–R4 bridged · +12V after F1</text>
+<path class="w w12" d="M470 55 H500"/>
+<text x="506" y="51" class="m">+12V to fuses F2–F6</text>
+<text x="506" y="66" class="m">(red tags below the relays)</text>
+<path class="w wg" d="M190 90 H215 V120"/>
+<rect class="gtag" x="193" y="120" width="44" height="18" rx="9"/>
+<text x="215" y="133" class="gt" text-anchor="middle">Gn1</text>
+<path class="w w12" d="M300 66 V120"/>
+<rect class="box" x="260" y="120" width="130" height="56" rx="6"/>
+<text x="272" y="142" class="h">LM2596</text>
+<text x="272" y="160" class="m">set 5.0V first</text>
+<path class="w wg" d="M290 176 V196"/>
+<rect class="gtag" x="268" y="196" width="44" height="18" rx="9"/>
+<text x="290" y="209" class="gt" text-anchor="middle">Gn1</text>
+<path class="w w5" d="M390 148 H470 V219"/>
+<rect class="blk b-black" x="453" y="219" width="34" height="22" rx="3"/>
+<text x="470" y="234" class="bl bl-black" text-anchor="middle">Bk1</text>
+<rect class="blk b-black" x="493" y="219" width="34" height="22" rx="3"/>
+<text x="510" y="234" class="bl bl-black" text-anchor="middle">Bk2</text>
+<rect class="blk b-black" x="533" y="219" width="34" height="22" rx="3"/>
+<text x="550" y="234" class="bl bl-black" text-anchor="middle">Bk3</text>
+<path class="w w5" d="M100 230 H453"/>
+<path class="w w5" d="M567 230 H600" stroke-dasharray="6 5"/>
+<text x="606" y="226" class="m">5V to tank sensors' brown</text>
+<text x="606" y="241" class="m">(later)</text>
+<text x="480" y="206" class="m">BLACK Bk1–Bk3 bridged · 5V</text>
+<circle cx="330" cy="230" r="4.5" class="d-w5"/>
+<path class="w w5" d="M100 230 V300"/>
+<path class="w w5" d="M330 230 V300"/>
+<rect class="box" x="30" y="300" width="170" height="410" rx="6"/>
+<text x="44" y="352" class="h">ESP32</text>
+<text x="44" y="370" class="m">Unit E</text>
+<text x="108" y="316" class="pin">VIN</text>
+<text x="192" y="334" class="pin" text-anchor="end">GND</text>
+<path class="w wg" d="M200 330 H300"/>
+<text x="308" y="334" class="pin">GND</text>
+<text x="192" y="356" class="pin" text-anchor="end">GPIO 26</text>
+<path class="w ws" d="M200 352 H300"/>
+<text x="308" y="356" class="pin">IN1</text>
+<text x="192" y="378" class="pin" text-anchor="end">GPIO 27</text>
+<path class="w ws" d="M200 374 H300"/>
+<text x="308" y="378" class="pin">IN2</text>
+<text x="192" y="400" class="pin" text-anchor="end">GPIO 25</text>
+<path class="w ws" d="M200 396 H300"/>
+<text x="308" y="400" class="pin">IN3</text>
+<text x="192" y="422" class="pin" text-anchor="end">GPIO 33</text>
+<path class="w ws" d="M200 418 H300"/>
+<text x="308" y="422" class="pin">IN4</text>
+<text x="192" y="444" class="pin" text-anchor="end">GPIO 32</text>
+<path class="w ws" d="M200 440 H300"/>
+<text x="308" y="444" class="pin">IN5</text>
+<text x="192" y="466" class="pin" text-anchor="end">GPIO 13</text>
+<path class="w ws" d="M200 462 H300"/>
+<text x="308" y="466" class="pin">IN6</text>
+<text x="192" y="488" class="pin" text-anchor="end">GPIO 22</text>
+<path class="w ws" d="M200 484 H300"/>
+<text x="308" y="488" class="pin">IN7</text>
+<text x="308" y="510" class="pin">IN8</text>
+<text x="192" y="532" class="pin" text-anchor="end">3V3</text>
+<path class="w w33" d="M200 528 H300"/>
+<text x="308" y="532" class="pin">VCC</text>
+<text x="44" y="580" class="m">GPIO 23: damaged,</text>
+<text x="44" y="596" class="m">leave empty</text>
+<text x="44" y="626" class="m">Later:</text>
+<text x="44" y="642" class="m">34, 35 tank sensors</text>
+<text x="44" y="658" class="m">18, 19 Orival</text>
+<path class="w wg" d="M115 710 V735"/>
+<rect class="gtag" x="93" y="735" width="44" height="18" rx="9"/>
+<text x="115" y="748" class="gt" text-anchor="middle">Gn2</text>
+<rect class="box" x="300" y="300" width="985" height="260" rx="6"/>
+<text x="460" y="330" class="h">Songle 8-relay module · SRD-05VDC-SL-C · active LOW</text>
+<text x="460" y="348" class="m">JD-VCC↔VCC jumper OFF. Coils on 5V (JD-VCC), inputs on 3.3V (VCC)</text>
+<text x="330" y="318" class="pin" text-anchor="middle">JD-VCC</text>
+<text x="395" y="318" class="pin" text-anchor="middle">GND</text>
+<circle cx="330" cy="300" r="4.5" class="d-w5"/>
+<path class="w wg" d="M395 300 V270"/>
+<rect class="gtag" x="373" y="252" width="44" height="18" rx="9"/>
+<text x="395" y="265" class="gt" text-anchor="middle">Gn2</text>
+<rect class="relay" x="358" y="400" width="99" height="120" rx="4"/>
+<text x="407" y="428" class="h" text-anchor="middle">K1</text>
+<text x="407" y="450" text-anchor="middle">Filter 1</text>
+<text x="407" y="470" class="m" text-anchor="middle">IN1</text>
+<text x="407" y="486" class="m" text-anchor="middle">GPIO 26</text>
+<circle cx="366" cy="560" r="5" class="term"/>
+<text x="366" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="406" cy="560" r="5" class="term"/>
+<text x="406" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="446" cy="560" r="5" class="term"/>
+<text x="446" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="473" y="400" width="99" height="120" rx="4"/>
+<text x="522" y="428" class="h" text-anchor="middle">K2</text>
+<text x="522" y="450" text-anchor="middle">Filter 2</text>
+<text x="522" y="470" class="m" text-anchor="middle">IN2</text>
+<text x="522" y="486" class="m" text-anchor="middle">GPIO 27</text>
+<circle cx="481" cy="560" r="5" class="term"/>
+<text x="481" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="521" cy="560" r="5" class="term"/>
+<text x="521" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="561" cy="560" r="5" class="term"/>
+<text x="561" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="588" y="400" width="99" height="120" rx="4"/>
+<text x="637" y="428" class="h" text-anchor="middle">K3</text>
+<text x="637" y="450" text-anchor="middle">Drain red</text>
+<text x="637" y="470" class="m" text-anchor="middle">IN3</text>
+<text x="637" y="486" class="m" text-anchor="middle">GPIO 25</text>
+<circle cx="596" cy="560" r="5" class="term"/>
+<text x="596" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="636" cy="560" r="5" class="term"/>
+<text x="636" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="676" cy="560" r="5" class="term"/>
+<text x="676" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="703" y="400" width="99" height="120" rx="4"/>
+<text x="752" y="428" class="h" text-anchor="middle">K4</text>
+<text x="752" y="450" text-anchor="middle">Drain black</text>
+<text x="752" y="470" class="m" text-anchor="middle">IN4</text>
+<text x="752" y="486" class="m" text-anchor="middle">GPIO 33</text>
+<circle cx="711" cy="560" r="5" class="term"/>
+<text x="711" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="751" cy="560" r="5" class="term"/>
+<text x="751" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="791" cy="560" r="5" class="term"/>
+<text x="791" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="818" y="400" width="99" height="120" rx="4"/>
+<text x="867" y="428" class="h" text-anchor="middle">K5</text>
+<text x="867" y="450" text-anchor="middle">Fill black</text>
+<text x="867" y="470" class="m" text-anchor="middle">IN5</text>
+<text x="867" y="486" class="m" text-anchor="middle">GPIO 32</text>
+<circle cx="826" cy="560" r="5" class="term"/>
+<text x="826" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="866" cy="560" r="5" class="term"/>
+<text x="866" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="906" cy="560" r="5" class="term"/>
+<text x="906" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="933" y="400" width="99" height="120" rx="4"/>
+<text x="982" y="428" class="h" text-anchor="middle">K6</text>
+<text x="982" y="450" text-anchor="middle">Fill red</text>
+<text x="982" y="470" class="m" text-anchor="middle">IN6</text>
+<text x="982" y="486" class="m" text-anchor="middle">GPIO 13</text>
+<circle cx="941" cy="560" r="5" class="term"/>
+<text x="941" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="981" cy="560" r="5" class="term"/>
+<text x="981" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1021" cy="560" r="5" class="term"/>
+<text x="1021" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="1048" y="400" width="99" height="120" rx="4"/>
+<text x="1097" y="428" class="h" text-anchor="middle">K7</text>
+<text x="1097" y="450" text-anchor="middle">Tank drain</text>
+<text x="1097" y="470" class="m" text-anchor="middle">IN7</text>
+<text x="1097" y="486" class="m" text-anchor="middle">GPIO 22</text>
+<circle cx="1056" cy="560" r="5" class="term"/>
+<text x="1056" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="1096" cy="560" r="5" class="term"/>
+<text x="1096" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1136" cy="560" r="5" class="term"/>
+<text x="1136" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="1163" y="400" width="99" height="120" rx="4"/>
+<text x="1212" y="428" class="h" text-anchor="middle">K8</text>
+<text x="1212" y="450" text-anchor="middle">spare</text>
+<text x="1212" y="470" class="m" text-anchor="middle">IN8</text>
+<text x="1212" y="486" class="m" text-anchor="middle">—</text>
+<circle cx="1171" cy="560" r="5" class="term"/>
+<text x="1171" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="1211" cy="560" r="5" class="term"/>
+<text x="1211" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1251" cy="560" r="5" class="term"/>
+<text x="1251" y="550" class="tl" text-anchor="middle">NC</text>
+<path class="w wy" d="M366 560 V820"/>
+<rect class="blk b-yellow" x="349" y="709" width="34" height="22" rx="3"/>
+<text x="366" y="724" class="bl bl-yellow" text-anchor="middle">Y1</text>
+<path class="w w12" d="M406 560 V650"/>
+<rect class="blk b-grey" x="389" y="599" width="34" height="22" rx="3"/>
+<text x="406" y="614" class="bl bl-grey" text-anchor="middle">Gy1</text>
+<rect class="fuse" x="398" y="650" width="16" height="40" rx="3"/>
+<text x="420" y="668" class="fl">F2</text>
+<text x="420" y="682" class="fl">1A</text>
+<path class="w w12" d="M406 690 V705"/>
+<rect class="rtag" x="382" y="705" width="48" height="18" rx="9"/>
+<text x="406" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M423 610 H456 V820"/>
+<circle cx="423" cy="610" r="4.5" class="d-w12"/>
+<text x="446" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="354" y="820" width="108" height="80" rx="6"/>
+<text x="408" y="850" class="h" text-anchor="middle">Filter 1</text>
+<text x="408" y="868" class="m" text-anchor="middle">U.S. Solid ½"</text>
+<text x="370" y="838" class="pl">Y</text>
+<text x="452" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M406 900 V925"/>
+<text x="412" y="916" class="pl">B</text>
+<rect class="gtag" x="384" y="925" width="44" height="18" rx="9"/>
+<text x="406" y="938" class="gt" text-anchor="middle">Gn3</text>
+<path class="w wy" d="M481 560 V820"/>
+<rect class="blk b-yellow" x="464" y="709" width="34" height="22" rx="3"/>
+<text x="481" y="724" class="bl bl-yellow" text-anchor="middle">Y2</text>
+<path class="w w12" d="M521 560 V650"/>
+<rect class="blk b-grey" x="504" y="599" width="34" height="22" rx="3"/>
+<text x="521" y="614" class="bl bl-grey" text-anchor="middle">Gy2</text>
+<rect class="fuse" x="513" y="650" width="16" height="40" rx="3"/>
+<text x="535" y="668" class="fl">F3</text>
+<text x="535" y="682" class="fl">1A</text>
+<path class="w w12" d="M521 690 V705"/>
+<rect class="rtag" x="497" y="705" width="48" height="18" rx="9"/>
+<text x="521" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M538 610 H571 V820"/>
+<circle cx="538" cy="610" r="4.5" class="d-w12"/>
+<text x="561" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="469" y="820" width="108" height="80" rx="6"/>
+<text x="523" y="850" class="h" text-anchor="middle">Filter 2</text>
+<text x="523" y="868" class="m" text-anchor="middle">U.S. Solid ½"</text>
+<text x="485" y="838" class="pl">Y</text>
+<text x="567" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M521 900 V925"/>
+<text x="527" y="916" class="pl">B</text>
+<rect class="gtag" x="499" y="925" width="44" height="18" rx="9"/>
+<text x="521" y="938" class="gt" text-anchor="middle">Gn3</text>
+<path class="w wy" d="M1056 560 V820"/>
+<rect class="blk b-yellow" x="1039" y="709" width="34" height="22" rx="3"/>
+<text x="1056" y="724" class="bl bl-yellow" text-anchor="middle">Y3</text>
+<path class="w w12" d="M1096 560 V650"/>
+<rect class="blk b-grey" x="1079" y="599" width="34" height="22" rx="3"/>
+<text x="1096" y="614" class="bl bl-grey" text-anchor="middle">Gy5</text>
+<rect class="fuse" x="1088" y="650" width="16" height="40" rx="3"/>
+<text x="1110" y="668" class="fl">F6</text>
+<text x="1110" y="682" class="fl">1A</text>
+<path class="w w12" d="M1096 690 V705"/>
+<rect class="rtag" x="1072" y="705" width="48" height="18" rx="9"/>
+<text x="1096" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M1113 610 H1146 V820"/>
+<circle cx="1113" cy="610" r="4.5" class="d-w12"/>
+<text x="1136" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="1044" y="820" width="108" height="80" rx="6"/>
+<text x="1098" y="850" class="h" text-anchor="middle">Tank Drain</text>
+<text x="1098" y="868" class="m" text-anchor="middle">U.S. Solid 1"</text>
+<text x="1060" y="838" class="pl">Y</text>
+<text x="1142" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M1096 900 V925"/>
+<text x="1102" y="916" class="pl">B</text>
+<rect class="gtag" x="1074" y="925" width="44" height="18" rx="9"/>
+<text x="1096" y="938" class="gt" text-anchor="middle">Gn4</text>
+<path class="w wg" d="M596 560 V585"/>
+<rect class="gtag" x="574" y="585" width="44" height="18" rx="9"/>
+<text x="596" y="598" class="gt" text-anchor="middle">Gn4</text>
+<path class="w wg" d="M791 560 V585"/>
+<rect class="gtag" x="769" y="585" width="44" height="18" rx="9"/>
+<text x="791" y="598" class="gt" text-anchor="middle">Gn4</text>
+<path class="w w12" d="M676 560 V592 H711 V560"/>
+<circle cx="693" cy="592" r="4.5" class="d-w12"/>
+<path class="w w12" d="M693 592 V650"/>
+<rect class="blk b-grey" x="676" y="611" width="34" height="22" rx="3"/>
+<text x="693" y="626" class="bl bl-grey" text-anchor="middle">Gy3</text>
+<rect class="fuse" x="685" y="650" width="16" height="40" rx="3"/>
+<text x="707" y="668" class="fl">F4</text>
+<text x="707" y="682" class="fl">2A</text>
+<path class="w w12" d="M693 690 V705"/>
+<rect class="rtag" x="669" y="705" width="48" height="18" rx="9"/>
+<text x="693" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w wb" d="M636 560 V820"/>
+<rect class="blk b-blue" x="619" y="749" width="34" height="22" rx="3"/>
+<text x="636" y="764" class="bl bl-blue" text-anchor="middle">Bu1</text>
+<path class="w wb" d="M751 560 V820"/>
+<rect class="blk b-blue" x="734" y="749" width="34" height="22" rx="3"/>
+<text x="751" y="764" class="bl bl-blue" text-anchor="middle">Bu2</text>
+<rect class="box" x="584" y="820" width="223" height="80" rx="6"/>
+<text x="640" y="838" class="pl">red</text>
+<text x="747" y="838" class="pl" text-anchor="end">black</text>
+<text x="695" y="862" class="h" text-anchor="middle">Pond Drain</text>
+<text x="695" y="880" class="m" text-anchor="middle">BOKYWOX A150 2"</text>
+<path class="w wg" d="M826 560 V625"/>
+<rect class="gtag" x="804" y="625" width="44" height="18" rx="9"/>
+<text x="826" y="638" class="gt" text-anchor="middle">Gn5</text>
+<path class="w wg" d="M1021 560 V585"/>
+<rect class="gtag" x="999" y="585" width="44" height="18" rx="9"/>
+<text x="1021" y="598" class="gt" text-anchor="middle">Gn5</text>
+<path class="w w12" d="M906 560 V592 H941 V560"/>
+<circle cx="923" cy="592" r="4.5" class="d-w12"/>
+<path class="w w12" d="M923 592 V650"/>
+<rect class="blk b-grey" x="906" y="611" width="34" height="22" rx="3"/>
+<text x="923" y="626" class="bl bl-grey" text-anchor="middle">Gy4</text>
+<rect class="fuse" x="915" y="650" width="16" height="40" rx="3"/>
+<text x="937" y="668" class="fl">F5</text>
+<text x="937" y="682" class="fl">2A</text>
+<path class="w w12" d="M923 690 V705"/>
+<rect class="rtag" x="899" y="705" width="48" height="18" rx="9"/>
+<text x="923" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w wb" d="M866 560 V820"/>
+<rect class="blk b-blue" x="849" y="749" width="34" height="22" rx="3"/>
+<text x="866" y="764" class="bl bl-blue" text-anchor="middle">Bu3</text>
+<path class="w wb" d="M981 560 V820"/>
+<rect class="blk b-blue" x="964" y="749" width="34" height="22" rx="3"/>
+<text x="981" y="764" class="bl bl-blue" text-anchor="middle">Bu4</text>
+<rect class="box" x="814" y="820" width="223" height="80" rx="6"/>
+<text x="870" y="838" class="pl">black</text>
+<text x="977" y="838" class="pl" text-anchor="end">red</text>
+<text x="925" y="862" class="h" text-anchor="middle">Pond Fill (red/black swapped)</text>
+<text x="925" y="880" class="m" text-anchor="middle">BOKYWOX A150 2"</text>
+<text x="1213" y="600" class="m" text-anchor="middle">spare</text>
+</svg>
+
+    <div class="legend">
+      <span style="--c:var(--w12)">+12V</span>
+      <span style="--c:var(--w5)">5V</span>
+      <span style="--c:var(--w33)">3.3V</span>
+      <span style="--c:var(--wgnd)">GND</span>
+      <span style="--c:var(--wsig)">GPIO → relay IN</span>
+      <span style="--c:var(--wyel)">relay-switched 12V to a valve's yellow wire</span>
+      <span style="--c:var(--wblue)">2" valve motor leads / valve blue</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>DIN rail map</h2>
+    <p class="sub" style="margin-bottom:10px">Each block has two clamps. "Inside" is the side facing the relay module and ESP32; "outside" is the side for field cables. Where two wires share a clamp, crimp them into one twin ferrule.</p>
+    <div class="groups">
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-red)"></span>Red · +12V after F1 (bridged)</th></tr><tr><th>Block</th><th>Clamp A</th><th>Clamp B</th></tr></thead>
+        <tbody>
+          <tr><td class="k">R1</td><td>F1 out</td><td>LM2596 IN+</td></tr>
+          <tr><td class="k">R2</td><td>F2 in</td><td>F3 in</td></tr>
+          <tr><td class="k">R3</td><td>F4 in</td><td>F5 in</td></tr>
+          <tr><td class="k">R4</td><td>F6 in</td><td>spare</td></tr>
+        </tbody></table></div>
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-grey)"></span>Grey · fused 12V, one per fuse (not bridged)</th></tr><tr><th>Block</th><th>Inside</th><th>Outside</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Gy1</td><td>F2 out + K1 COM</td><td>Filter 1 red</td></tr>
+          <tr><td class="k">Gy2</td><td>F3 out + K2 COM</td><td>Filter 2 red</td></tr>
+          <tr><td class="k">Gy3</td><td>F4 out</td><td>K3 NC + K4 NO</td></tr>
+          <tr><td class="k">Gy4</td><td>F5 out</td><td>K5 NC + K6 NO</td></tr>
+          <tr><td class="k">Gy5</td><td>F6 out + K7 COM</td><td>Tank drain red</td></tr>
+        </tbody></table></div>
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-green)"></span>Green · GND (bridged)</th></tr><tr><th>Block</th><th>Clamp A</th><th>Clamp B</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Gn1</td><td>12V supply −</td><td>LM2596 IN−</td></tr>
+          <tr><td class="k">Gn2</td><td>ESP32 GND</td><td>Relay JD-header GND</td></tr>
+          <tr><td class="k">Gn3</td><td>Filter 1 blue</td><td>Filter 2 blue</td></tr>
+          <tr><td class="k">Gn4</td><td>Tank drain blue</td><td>K3 NO + K4 NC</td></tr>
+          <tr><td class="k">Gn5</td><td>K5 NO + K6 NC</td><td>spare (tank sensors later)</td></tr>
+        </tbody></table></div>
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-black)"></span>Black · 5V (bridged)</th></tr><tr><th>Block</th><th>Clamp A</th><th>Clamp B</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Bk1</td><td>LM2596 OUT+</td><td>ESP32 VIN</td></tr>
+          <tr><td class="k">Bk2</td><td>Relay JD-VCC</td><td>sensor 1 brown (later)</td></tr>
+          <tr><td class="k">Bk3</td><td>sensor 2 brown (later)</td><td>spare</td></tr>
+        </tbody></table></div>
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-yellow)"></span>Yellow · open signal to 3-wire valves</th></tr><tr><th>Block</th><th>Inside</th><th>Outside</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Y1</td><td>K1 NO</td><td>Filter 1 yellow</td></tr>
+          <tr><td class="k">Y2</td><td>K2 NO</td><td>Filter 2 yellow</td></tr>
+          <tr><td class="k">Y3</td><td>K7 NO</td><td>Tank drain yellow</td></tr>
+        </tbody></table></div>
+      <div class="tbl"><table>
+        <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-blue)"></span>Blue · 2" valve motor leads</th></tr><tr><th>Block</th><th>Inside</th><th>Outside</th></tr></thead>
+        <tbody>
+          <tr><td class="k">Bu1</td><td>K3 COM</td><td>Pond Drain red</td></tr>
+          <tr><td class="k">Bu2</td><td>K4 COM</td><td>Pond Drain black</td></tr>
+          <tr><td class="k">Bu3</td><td>K5 COM</td><td>Pond Fill black</td></tr>
+          <tr><td class="k">Bu4</td><td>K6 COM</td><td>Pond Fill red</td></tr>
+        </tbody></table></div>
+    </div>
+    <p class="sub" style="margin-top:10px">Left over: 1 red, 2 black, 2 yellow, 1 blue. The ESP32's GPIOs and 3V3 go straight to the relay module's IN header with jumper wires; they don't need blocks. Label the black blocks "5V" so nobody takes them for ground.</p>
+  </section>
+
+  <section>
+    <h2>Relay module</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Relay</th><th>IN</th><th>GPIO</th><th>Valve</th><th>NO</th><th>COM</th><th>NC</th></tr></thead>
+      <tbody>
+        <tr><td class="k">K1</td><td>IN1</td><td class="k">26</td><td>Filter 1</td><td>Y1</td><td>Gy1 (F2)</td><td>empty</td></tr>
+        <tr><td class="k">K2</td><td>IN2</td><td class="k">27</td><td>Filter 2</td><td>Y2</td><td>Gy2 (F3)</td><td>empty</td></tr>
+        <tr><td class="k">K3</td><td>IN3</td><td class="k">25</td><td>Pond Drain red</td><td>GND</td><td>Bu1</td><td>Gy3 (F4)</td></tr>
+        <tr><td class="k">K4</td><td>IN4</td><td class="k">33</td><td>Pond Drain black</td><td>Gy3 (F4)</td><td>Bu2</td><td>GND</td></tr>
+        <tr><td class="k">K5</td><td>IN5</td><td class="k">32</td><td>Pond Fill black</td><td>GND</td><td>Bu3</td><td>Gy4 (F5)</td></tr>
+        <tr><td class="k">K6</td><td>IN6</td><td class="k">13</td><td>Pond Fill red</td><td>Gy4 (F5)</td><td>Bu4</td><td>GND</td></tr>
+        <tr><td class="k">K7</td><td>IN7</td><td class="k">22</td><td>Storage Tank Drain</td><td>Y3</td><td>Gy5 (F6)</td><td>empty</td></tr>
+        <tr><td class="k">K8</td><td>IN8</td><td>—</td><td>spare</td><td></td><td></td><td></td></tr>
+      </tbody></table></div>
+    <p class="sub" style="margin-top:10px">Header: VCC → ESP32 3V3, GND → ESP32 GND, JD-VCC → Bk2 (5V), JD-header GND → Gn2. Pull the JD-VCC↔VCC jumper. All eight coils at once draw about 0.6A from the 5V rail, which the LM2596 handles easily. GPIO numbers are the same as before, so the firmware doesn't change.</p>
+  </section>
+
+  <div class="note warn">
+    <strong>Don't connect any IN pin to the ESP32 until step 5 passes.</strong>
+    <p>The old module's IN1 read 9V, and that probably killed GPIO 23. Every IN pin on the new module must read 3.3V or less before a GPIO touches it.</p>
+  </div>
+
+  <section>
+    <h2>Build and test, one stage at a time</h2>
+    <ol class="steps">
+      <li><b>Rail and 12V.</b> Mount the blocks and fit the bridges for red, green and black. Supply + → F1 → R1, and supply − → Gn1. Power on and check for <span class="v">12V</span> from each red block to each green block. Power off.</li>
+      <li><b>5V.</b> Wire the LM2596 to R1 and Gn1, with its output disconnected. Set it to <span class="v">5.0V</span>, then connect OUT+ to Bk1. Check for <span class="v">5.0V</span> on Bk1–Bk3.</li>
+      <li><b>ESP32.</b> Connect Bk1 → VIN and ESP32 GND → Gn2. It should boot and join WiFi (solid blue LED). Unplug VIN before you plug in USB to flash, and flash the current firmware (GPIO 22 for the tank drain). Then check the GPIOs with nothing connected: 26, 27, 25, 33, 32, 13 and 22 should all read <span class="v">3.3V</span>.</li>
+      <li><b>Relay module power.</b> Pull the jumper, then wire JD-VCC → Bk2 and JD GND → Gn2. Wire VCC → ESP32 3V3 and GND → ESP32 GND. Don't connect any IN wires yet.</li>
+      <li><b>IN pin check.</b> Measure IN1–IN8 to GND. Each should read <span class="v">3.3V or less</span>. Touch each IN to GND in turn: its LED should light and its relay should click. If any IN reads above 3.3V, stop and tell me.</li>
+      <li><b>Logic wires.</b> Run GPIO 26, 27, 25, 33, 32, 13 and 22 to IN1–IN7. Every relay should stay off.</li>
+      <li><b>Filter 1.</b> Wire F2/Gy1/Y1 and the valve to Gy1, Y1 and Gn3. Press Flush now on the web page. The valve should open, then close.</li>
+      <li><b>Filter 2.</b> Same as filter 1, using F3, Gy2 and Y2.</li>
+      <li><b>Storage Tank Drain.</b> F6, Gy5 and Y3, with blue to Gn4. Don't press Drain Tank until the Pond Drain and Pond Fill work: Drain Tank moves them first.</li>
+      <li><b>Pond Drain.</b> Jumper K3 NC to K4 NO and run the pair to Gy3. Run K3 NO and K4 NC to Gn4, and K3/K4 COM to Bu1/Bu2. Fit F4 (2A). With the relays off, it should drive <b>closed</b>. Test Open, 50% and Close.</li>
+      <li><b>Pond Fill.</b> Same pattern on K5/K6, using Gy4, Gn5 and Bu3/Bu4, with F5 (2A). With the relays off it should drive <b>open</b>. If it goes the wrong way, swap the red and black on Bu3/Bu4.</li>
+      <li><b>Last.</b> Start a 10-minute Drain Tank run. The Pond Drain should go to 100% and Pond Fill should close; then the tank drain should open. Press Stop draining: the tank drain should close and the other two return.</li>
+    </ol>
+  </section>
+</main>

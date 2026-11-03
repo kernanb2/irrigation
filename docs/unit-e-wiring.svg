@@ -1,0 +1,338 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="1000" viewBox="0 0 1300 1000" role="img" aria-label="Complete Unit E wiring: 12V supply, F1, red 12V blocks, LM2596 to black 5V blocks, ESP32 GPIOs to an 8-relay module, fused grey blocks to each relay, and the five valves through yellow and blue blocks; all grounds to green blocks.">
+<style>
+text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; fill: #1d2420; }
+.m { fill: #5d6a63; font-size: 11.5px; }
+.h { font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 600; font-size: 13.5px; }
+.pin, .tl { font-size: 11px; }
+.tl { fill: #5d6a63; }
+.pl { font-size: 11px; font-weight: 600; fill: #5d6a63; }
+.fl { font-size: 11px; font-weight: 600; }
+.box { fill: #e7ece9; stroke: #5d6a63; stroke-width: 1.4; }
+.relay { fill: #dfe6e2; stroke: #c9d1cc; stroke-width: 1.2; }
+.term { fill: #ffffff; stroke: #1d2420; stroke-width: 1.4; }
+.fuse { fill: #ffffff; stroke: #1d2420; stroke-width: 1.4; }
+.w { fill: none; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.w12 { stroke: #c62828; } .wy { stroke: #b88a00; } .wb { stroke: #1f5fbf; }
+.wg { stroke: #2e8b57; } .w5 { stroke: #d26a00; } .w33 { stroke: #b5179e; } .ws { stroke: #6a4bc4; }
+.d-w12 { fill: #c62828; } .d-w5 { fill: #d26a00; }
+.blk { stroke: #1d2420; stroke-width: 1; }
+.b-red { fill: #d64545; } .b-grey { fill: #a4aaa7; } .b-green { fill: #2e8b57; }
+.b-black { fill: #26292b; } .b-yellow { fill: #e8c547; } .b-blue { fill: #2f6fd6; }
+.bl { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+.bl-grey, .bl-yellow { fill: #1d2420; }
+.gtag { fill: #2e8b57; } .gt { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+.rtag { fill: #d64545; } .rt { font-size: 10.5px; font-weight: 600; fill: #ffffff; }
+</style>
+<rect width="1300" height="1000" fill="#ffffff"/>
+<rect class="box" x="30" y="30" width="160" height="80" rx="6"/>
+<text x="44" y="56" class="h">12V 3A supply</text>
+<text x="176" y="60">+</text>
+<text x="176" y="96">−</text>
+<path class="w w12" d="M190 55 H220"/>
+<rect class="fuse" x="220" y="45" width="50" height="20" rx="3"/>
+<text x="245" y="59" class="fl" text-anchor="middle">F1 3A</text>
+<path class="w w12" d="M270 55 H470"/>
+<rect class="blk b-red" x="283" y="44" width="34" height="22" rx="3"/>
+<text x="300" y="59" class="bl bl-red" text-anchor="middle">R1</text>
+<rect class="blk b-red" x="323" y="44" width="34" height="22" rx="3"/>
+<text x="340" y="59" class="bl bl-red" text-anchor="middle">R2</text>
+<rect class="blk b-red" x="363" y="44" width="34" height="22" rx="3"/>
+<text x="380" y="59" class="bl bl-red" text-anchor="middle">R3</text>
+<rect class="blk b-red" x="403" y="44" width="34" height="22" rx="3"/>
+<text x="420" y="59" class="bl bl-red" text-anchor="middle">R4</text>
+<text x="300" y="30" class="m">RED R1–R4 bridged · +12V after F1</text>
+<path class="w w12" d="M470 55 H500"/>
+<text x="506" y="51" class="m">+12V to fuses F2–F6</text>
+<text x="506" y="66" class="m">(red tags below the relays)</text>
+<path class="w wg" d="M190 90 H215 V120"/>
+<rect class="gtag" x="193" y="120" width="44" height="18" rx="9"/>
+<text x="215" y="133" class="gt" text-anchor="middle">Gn1</text>
+<path class="w w12" d="M300 66 V120"/>
+<rect class="box" x="260" y="120" width="130" height="56" rx="6"/>
+<text x="272" y="142" class="h">LM2596</text>
+<text x="272" y="160" class="m">set 5.0V first</text>
+<path class="w wg" d="M290 176 V196"/>
+<rect class="gtag" x="268" y="196" width="44" height="18" rx="9"/>
+<text x="290" y="209" class="gt" text-anchor="middle">Gn1</text>
+<path class="w w5" d="M390 148 H470 V219"/>
+<rect class="blk b-black" x="453" y="219" width="34" height="22" rx="3"/>
+<text x="470" y="234" class="bl bl-black" text-anchor="middle">Bk1</text>
+<rect class="blk b-black" x="493" y="219" width="34" height="22" rx="3"/>
+<text x="510" y="234" class="bl bl-black" text-anchor="middle">Bk2</text>
+<rect class="blk b-black" x="533" y="219" width="34" height="22" rx="3"/>
+<text x="550" y="234" class="bl bl-black" text-anchor="middle">Bk3</text>
+<path class="w w5" d="M100 230 H453"/>
+<path class="w w5" d="M567 230 H600" stroke-dasharray="6 5"/>
+<text x="606" y="226" class="m">5V to tank sensors' brown</text>
+<text x="606" y="241" class="m">(later)</text>
+<text x="480" y="206" class="m">BLACK Bk1–Bk3 bridged · 5V</text>
+<circle cx="330" cy="230" r="4.5" class="d-w5"/>
+<path class="w w5" d="M100 230 V300"/>
+<path class="w w5" d="M330 230 V300"/>
+<rect class="box" x="30" y="300" width="170" height="410" rx="6"/>
+<text x="44" y="352" class="h">ESP32</text>
+<text x="44" y="370" class="m">Unit E</text>
+<text x="108" y="316" class="pin">VIN</text>
+<text x="192" y="334" class="pin" text-anchor="end">GND</text>
+<path class="w wg" d="M200 330 H300"/>
+<text x="308" y="334" class="pin">GND</text>
+<text x="192" y="356" class="pin" text-anchor="end">GPIO 26</text>
+<path class="w ws" d="M200 352 H300"/>
+<text x="308" y="356" class="pin">IN1</text>
+<text x="192" y="378" class="pin" text-anchor="end">GPIO 27</text>
+<path class="w ws" d="M200 374 H300"/>
+<text x="308" y="378" class="pin">IN2</text>
+<text x="192" y="400" class="pin" text-anchor="end">GPIO 25</text>
+<path class="w ws" d="M200 396 H300"/>
+<text x="308" y="400" class="pin">IN3</text>
+<text x="192" y="422" class="pin" text-anchor="end">GPIO 33</text>
+<path class="w ws" d="M200 418 H300"/>
+<text x="308" y="422" class="pin">IN4</text>
+<text x="192" y="444" class="pin" text-anchor="end">GPIO 32</text>
+<path class="w ws" d="M200 440 H300"/>
+<text x="308" y="444" class="pin">IN5</text>
+<text x="192" y="466" class="pin" text-anchor="end">GPIO 13</text>
+<path class="w ws" d="M200 462 H300"/>
+<text x="308" y="466" class="pin">IN6</text>
+<text x="192" y="488" class="pin" text-anchor="end">GPIO 22</text>
+<path class="w ws" d="M200 484 H300"/>
+<text x="308" y="488" class="pin">IN7</text>
+<text x="308" y="510" class="pin">IN8</text>
+<text x="192" y="532" class="pin" text-anchor="end">3V3</text>
+<path class="w w33" d="M200 528 H300"/>
+<text x="308" y="532" class="pin">VCC</text>
+<text x="44" y="580" class="m">GPIO 23: damaged,</text>
+<text x="44" y="596" class="m">leave empty</text>
+<text x="44" y="626" class="m">Later:</text>
+<text x="44" y="642" class="m">34, 35 tank sensors</text>
+<text x="44" y="658" class="m">18, 19 Orival</text>
+<path class="w wg" d="M115 710 V735"/>
+<rect class="gtag" x="93" y="735" width="44" height="18" rx="9"/>
+<text x="115" y="748" class="gt" text-anchor="middle">Gn2</text>
+<rect class="box" x="300" y="300" width="985" height="260" rx="6"/>
+<text x="460" y="330" class="h">Songle 8-relay module · SRD-05VDC-SL-C · active LOW</text>
+<text x="460" y="348" class="m">JD-VCC↔VCC jumper OFF. Coils on 5V (JD-VCC), inputs on 3.3V (VCC)</text>
+<text x="330" y="318" class="pin" text-anchor="middle">JD-VCC</text>
+<text x="395" y="318" class="pin" text-anchor="middle">GND</text>
+<circle cx="330" cy="300" r="4.5" class="d-w5"/>
+<path class="w wg" d="M395 300 V270"/>
+<rect class="gtag" x="373" y="252" width="44" height="18" rx="9"/>
+<text x="395" y="265" class="gt" text-anchor="middle">Gn2</text>
+<rect class="relay" x="358" y="400" width="99" height="120" rx="4"/>
+<text x="407" y="428" class="h" text-anchor="middle">K1</text>
+<text x="407" y="450" text-anchor="middle">Filter 1</text>
+<text x="407" y="470" class="m" text-anchor="middle">IN1</text>
+<text x="407" y="486" class="m" text-anchor="middle">GPIO 26</text>
+<circle cx="366" cy="560" r="5" class="term"/>
+<text x="366" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="406" cy="560" r="5" class="term"/>
+<text x="406" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="446" cy="560" r="5" class="term"/>
+<text x="446" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="473" y="400" width="99" height="120" rx="4"/>
+<text x="522" y="428" class="h" text-anchor="middle">K2</text>
+<text x="522" y="450" text-anchor="middle">Filter 2</text>
+<text x="522" y="470" class="m" text-anchor="middle">IN2</text>
+<text x="522" y="486" class="m" text-anchor="middle">GPIO 27</text>
+<circle cx="481" cy="560" r="5" class="term"/>
+<text x="481" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="521" cy="560" r="5" class="term"/>
+<text x="521" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="561" cy="560" r="5" class="term"/>
+<text x="561" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="588" y="400" width="99" height="120" rx="4"/>
+<text x="637" y="428" class="h" text-anchor="middle">K3</text>
+<text x="637" y="450" text-anchor="middle">Drain red</text>
+<text x="637" y="470" class="m" text-anchor="middle">IN3</text>
+<text x="637" y="486" class="m" text-anchor="middle">GPIO 25</text>
+<circle cx="596" cy="560" r="5" class="term"/>
+<text x="596" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="636" cy="560" r="5" class="term"/>
+<text x="636" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="676" cy="560" r="5" class="term"/>
+<text x="676" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="703" y="400" width="99" height="120" rx="4"/>
+<text x="752" y="428" class="h" text-anchor="middle">K4</text>
+<text x="752" y="450" text-anchor="middle">Drain black</text>
+<text x="752" y="470" class="m" text-anchor="middle">IN4</text>
+<text x="752" y="486" class="m" text-anchor="middle">GPIO 33</text>
+<circle cx="711" cy="560" r="5" class="term"/>
+<text x="711" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="751" cy="560" r="5" class="term"/>
+<text x="751" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="791" cy="560" r="5" class="term"/>
+<text x="791" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="818" y="400" width="99" height="120" rx="4"/>
+<text x="867" y="428" class="h" text-anchor="middle">K5</text>
+<text x="867" y="450" text-anchor="middle">Fill black</text>
+<text x="867" y="470" class="m" text-anchor="middle">IN5</text>
+<text x="867" y="486" class="m" text-anchor="middle">GPIO 32</text>
+<circle cx="826" cy="560" r="5" class="term"/>
+<text x="826" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="866" cy="560" r="5" class="term"/>
+<text x="866" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="906" cy="560" r="5" class="term"/>
+<text x="906" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="933" y="400" width="99" height="120" rx="4"/>
+<text x="982" y="428" class="h" text-anchor="middle">K6</text>
+<text x="982" y="450" text-anchor="middle">Fill red</text>
+<text x="982" y="470" class="m" text-anchor="middle">IN6</text>
+<text x="982" y="486" class="m" text-anchor="middle">GPIO 13</text>
+<circle cx="941" cy="560" r="5" class="term"/>
+<text x="941" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="981" cy="560" r="5" class="term"/>
+<text x="981" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1021" cy="560" r="5" class="term"/>
+<text x="1021" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="1048" y="400" width="99" height="120" rx="4"/>
+<text x="1097" y="428" class="h" text-anchor="middle">K7</text>
+<text x="1097" y="450" text-anchor="middle">Tank drain</text>
+<text x="1097" y="470" class="m" text-anchor="middle">IN7</text>
+<text x="1097" y="486" class="m" text-anchor="middle">GPIO 22</text>
+<circle cx="1056" cy="560" r="5" class="term"/>
+<text x="1056" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="1096" cy="560" r="5" class="term"/>
+<text x="1096" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1136" cy="560" r="5" class="term"/>
+<text x="1136" y="550" class="tl" text-anchor="middle">NC</text>
+<rect class="relay" x="1163" y="400" width="99" height="120" rx="4"/>
+<text x="1212" y="428" class="h" text-anchor="middle">K8</text>
+<text x="1212" y="450" text-anchor="middle">spare</text>
+<text x="1212" y="470" class="m" text-anchor="middle">IN8</text>
+<text x="1212" y="486" class="m" text-anchor="middle">—</text>
+<circle cx="1171" cy="560" r="5" class="term"/>
+<text x="1171" y="550" class="tl" text-anchor="middle">NO</text>
+<circle cx="1211" cy="560" r="5" class="term"/>
+<text x="1211" y="550" class="tl" text-anchor="middle">COM</text>
+<circle cx="1251" cy="560" r="5" class="term"/>
+<text x="1251" y="550" class="tl" text-anchor="middle">NC</text>
+<path class="w wy" d="M366 560 V820"/>
+<rect class="blk b-yellow" x="349" y="709" width="34" height="22" rx="3"/>
+<text x="366" y="724" class="bl bl-yellow" text-anchor="middle">Y1</text>
+<path class="w w12" d="M406 560 V650"/>
+<rect class="blk b-grey" x="389" y="599" width="34" height="22" rx="3"/>
+<text x="406" y="614" class="bl bl-grey" text-anchor="middle">Gy1</text>
+<rect class="fuse" x="398" y="650" width="16" height="40" rx="3"/>
+<text x="420" y="668" class="fl">F2</text>
+<text x="420" y="682" class="fl">1A</text>
+<path class="w w12" d="M406 690 V705"/>
+<rect class="rtag" x="382" y="705" width="48" height="18" rx="9"/>
+<text x="406" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M423 610 H456 V820"/>
+<circle cx="423" cy="610" r="4.5" class="d-w12"/>
+<text x="446" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="354" y="820" width="108" height="80" rx="6"/>
+<text x="408" y="850" class="h" text-anchor="middle">Filter 1</text>
+<text x="408" y="868" class="m" text-anchor="middle">U.S. Solid ½"</text>
+<text x="370" y="838" class="pl">Y</text>
+<text x="452" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M406 900 V925"/>
+<text x="412" y="916" class="pl">B</text>
+<rect class="gtag" x="384" y="925" width="44" height="18" rx="9"/>
+<text x="406" y="938" class="gt" text-anchor="middle">Gn3</text>
+<path class="w wy" d="M481 560 V820"/>
+<rect class="blk b-yellow" x="464" y="709" width="34" height="22" rx="3"/>
+<text x="481" y="724" class="bl bl-yellow" text-anchor="middle">Y2</text>
+<path class="w w12" d="M521 560 V650"/>
+<rect class="blk b-grey" x="504" y="599" width="34" height="22" rx="3"/>
+<text x="521" y="614" class="bl bl-grey" text-anchor="middle">Gy2</text>
+<rect class="fuse" x="513" y="650" width="16" height="40" rx="3"/>
+<text x="535" y="668" class="fl">F3</text>
+<text x="535" y="682" class="fl">1A</text>
+<path class="w w12" d="M521 690 V705"/>
+<rect class="rtag" x="497" y="705" width="48" height="18" rx="9"/>
+<text x="521" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M538 610 H571 V820"/>
+<circle cx="538" cy="610" r="4.5" class="d-w12"/>
+<text x="561" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="469" y="820" width="108" height="80" rx="6"/>
+<text x="523" y="850" class="h" text-anchor="middle">Filter 2</text>
+<text x="523" y="868" class="m" text-anchor="middle">U.S. Solid ½"</text>
+<text x="485" y="838" class="pl">Y</text>
+<text x="567" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M521 900 V925"/>
+<text x="527" y="916" class="pl">B</text>
+<rect class="gtag" x="499" y="925" width="44" height="18" rx="9"/>
+<text x="521" y="938" class="gt" text-anchor="middle">Gn3</text>
+<path class="w wy" d="M1056 560 V820"/>
+<rect class="blk b-yellow" x="1039" y="709" width="34" height="22" rx="3"/>
+<text x="1056" y="724" class="bl bl-yellow" text-anchor="middle">Y3</text>
+<path class="w w12" d="M1096 560 V650"/>
+<rect class="blk b-grey" x="1079" y="599" width="34" height="22" rx="3"/>
+<text x="1096" y="614" class="bl bl-grey" text-anchor="middle">Gy5</text>
+<rect class="fuse" x="1088" y="650" width="16" height="40" rx="3"/>
+<text x="1110" y="668" class="fl">F6</text>
+<text x="1110" y="682" class="fl">1A</text>
+<path class="w w12" d="M1096 690 V705"/>
+<rect class="rtag" x="1072" y="705" width="48" height="18" rx="9"/>
+<text x="1096" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w w12" d="M1113 610 H1146 V820"/>
+<circle cx="1113" cy="610" r="4.5" class="d-w12"/>
+<text x="1136" y="585" class="m" text-anchor="middle">empty</text>
+<rect class="box" x="1044" y="820" width="108" height="80" rx="6"/>
+<text x="1098" y="850" class="h" text-anchor="middle">Tank Drain</text>
+<text x="1098" y="868" class="m" text-anchor="middle">U.S. Solid 1"</text>
+<text x="1060" y="838" class="pl">Y</text>
+<text x="1142" y="838" class="pl" text-anchor="end">R</text>
+<path class="w wb" d="M1096 900 V925"/>
+<text x="1102" y="916" class="pl">B</text>
+<rect class="gtag" x="1074" y="925" width="44" height="18" rx="9"/>
+<text x="1096" y="938" class="gt" text-anchor="middle">Gn4</text>
+<path class="w wg" d="M596 560 V585"/>
+<rect class="gtag" x="574" y="585" width="44" height="18" rx="9"/>
+<text x="596" y="598" class="gt" text-anchor="middle">Gn4</text>
+<path class="w wg" d="M791 560 V585"/>
+<rect class="gtag" x="769" y="585" width="44" height="18" rx="9"/>
+<text x="791" y="598" class="gt" text-anchor="middle">Gn4</text>
+<path class="w w12" d="M676 560 V592 H711 V560"/>
+<circle cx="693" cy="592" r="4.5" class="d-w12"/>
+<path class="w w12" d="M693 592 V650"/>
+<rect class="blk b-grey" x="676" y="611" width="34" height="22" rx="3"/>
+<text x="693" y="626" class="bl bl-grey" text-anchor="middle">Gy3</text>
+<rect class="fuse" x="685" y="650" width="16" height="40" rx="3"/>
+<text x="707" y="668" class="fl">F4</text>
+<text x="707" y="682" class="fl">2A</text>
+<path class="w w12" d="M693 690 V705"/>
+<rect class="rtag" x="669" y="705" width="48" height="18" rx="9"/>
+<text x="693" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w wb" d="M636 560 V820"/>
+<rect class="blk b-blue" x="619" y="749" width="34" height="22" rx="3"/>
+<text x="636" y="764" class="bl bl-blue" text-anchor="middle">Bu1</text>
+<path class="w wb" d="M751 560 V820"/>
+<rect class="blk b-blue" x="734" y="749" width="34" height="22" rx="3"/>
+<text x="751" y="764" class="bl bl-blue" text-anchor="middle">Bu2</text>
+<rect class="box" x="584" y="820" width="223" height="80" rx="6"/>
+<text x="640" y="838" class="pl">red</text>
+<text x="747" y="838" class="pl" text-anchor="end">black</text>
+<text x="695" y="862" class="h" text-anchor="middle">Pond Drain</text>
+<text x="695" y="880" class="m" text-anchor="middle">BOKYWOX A150 2"</text>
+<path class="w wg" d="M826 560 V625"/>
+<rect class="gtag" x="804" y="625" width="44" height="18" rx="9"/>
+<text x="826" y="638" class="gt" text-anchor="middle">Gn5</text>
+<path class="w wg" d="M1021 560 V585"/>
+<rect class="gtag" x="999" y="585" width="44" height="18" rx="9"/>
+<text x="1021" y="598" class="gt" text-anchor="middle">Gn5</text>
+<path class="w w12" d="M906 560 V592 H941 V560"/>
+<circle cx="923" cy="592" r="4.5" class="d-w12"/>
+<path class="w w12" d="M923 592 V650"/>
+<rect class="blk b-grey" x="906" y="611" width="34" height="22" rx="3"/>
+<text x="923" y="626" class="bl bl-grey" text-anchor="middle">Gy4</text>
+<rect class="fuse" x="915" y="650" width="16" height="40" rx="3"/>
+<text x="937" y="668" class="fl">F5</text>
+<text x="937" y="682" class="fl">2A</text>
+<path class="w w12" d="M923 690 V705"/>
+<rect class="rtag" x="899" y="705" width="48" height="18" rx="9"/>
+<text x="923" y="718" class="rt" text-anchor="middle">+12V</text>
+<path class="w wb" d="M866 560 V820"/>
+<rect class="blk b-blue" x="849" y="749" width="34" height="22" rx="3"/>
+<text x="866" y="764" class="bl bl-blue" text-anchor="middle">Bu3</text>
+<path class="w wb" d="M981 560 V820"/>
+<rect class="blk b-blue" x="964" y="749" width="34" height="22" rx="3"/>
+<text x="981" y="764" class="bl bl-blue" text-anchor="middle">Bu4</text>
+<rect class="box" x="814" y="820" width="223" height="80" rx="6"/>
+<text x="870" y="838" class="pl">black</text>
+<text x="977" y="838" class="pl" text-anchor="end">red</text>
+<text x="925" y="862" class="h" text-anchor="middle">Pond Fill (red/black swapped)</text>
+<text x="925" y="880" class="m" text-anchor="middle">BOKYWOX A150 2"</text>
+<text x="1213" y="600" class="m" text-anchor="middle">spare</text>
+</svg>

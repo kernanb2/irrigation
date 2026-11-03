@@ -79,7 +79,7 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (17, 5, 1, 'Pondwater Pre-filter-2', FALSE, 'Flush valve, GPIO 27 — controlled by the flush cycle'),
 (18, 5, 2, 'Pond Drain',             FALSE, '2" drain valve, relays 3+4 (GPIO 25/33) — supports partial open'),
 (19, 5, 3, 'Pond Fill',              FALSE, '2" valve, relays 5+6 (GPIO 32/13) — normally open'),
-(20, 5, 4, 'Storage Tank Drain',     FALSE, '1" valve, relay 7 (GPIO 23) — normally closed');
+(20, 5, 4, 'Storage Tank Drain',     FALSE, '1" valve, relay 7 (GPIO 22) — normally closed');
 
 -- ── Moisture sensor readings ──────────────────────────────────────────────────
 CREATE TABLE moisture_readings (

@@ -84,7 +84,7 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 // the Pond Drain fully and closes Pond Fill, so no spring water reaches the tank, then
 // opens this valve. When the time is up, Stop is pressed or a Pond Drain button is
 // pressed, this valve closes first, then Pond Fill opens and the drain goes back.
-#define TANK_DRAIN_PIN    23
+#define TANK_DRAIN_PIN    22      // GPIO 23 on this board can't pull LOW (reads 1.8V unloaded)
 #define TANK_DRAIN_TRAVEL_MS 15000 // counts as moving this long after switching — time it and adjust
 #define TANK_DRAIN_INDEX  4       // device number 5 in events
 #define TANK_DRAIN_MIN_MIN 10
