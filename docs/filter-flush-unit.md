@@ -8,7 +8,7 @@ A second ESP32 that controls five motorized ball valves: two flush (clean) the p
 | 2 | Pondwater Pre-filter-2 | U.S. Solid ½" | Relay 2 | 27 |
 | 3 | Pond Drain             | BOKYWOX 2"    | Relays 3 + 4 | 25 + 33 |
 | 4 | Pond Fill              | BOKYWOX 2"    | Relays 5 + 6 | 32 + 13 |
-| 5 | Storage Tank Drain     | U.S. Solid 1" | Relay 7 | 22 |
+| 5 | Storage Tank Drain     | U.S. Solid 1" | Relay 7 | 21 |
 
 Each filter has its own independent flush cycle. The Pond Drain opens, closes, or opens partway (see **Pond Drain** below). Two level sensors on the tank the drain fills close it when the tank is full and reopen it when the level drops (see **Tank Level Sensors**). Pond Fill opens the drain fully and closes Pond Fill for 1–24 hours (see **Pond Fill**). Storage Tank Drain does the same, then opens the tank drain for 10–120 minutes (see **Storage Tank Drain**). This board is separate from the zone controllers (Units A/B/C) and has its own firmware.
 
@@ -206,7 +206,7 @@ Same valve and same wiring idea as the Pond Drain, but with **red and black swap
 
 ### Relay 7 → Storage Tank Drain (3-wire, normally closed)
 
-The USS-MSV00213 has the same three wires as the filter valves and is wired the same way, on a fourth relay module (remove the JD-VCC jumper as before; **IN1 → GPIO 22**, IN2 spare). It was on GPIO 23 at first, but that pin on this ESP32 is damaged: driven LOW it read 1.8V with nothing connected, so the relay never turned on (found 2026-11-01).
+The USS-MSV00213 has the same three wires as the filter valves and is wired the same way, on a fourth relay module (remove the JD-VCC jumper as before; **IN1 → GPIO 21**, IN2 spare). It was on GPIO 23 at first, but that pin on this ESP32 is damaged: driven LOW it read 1.8V with nothing connected, so the relay never turned on (found 2026-11-01). GPIO 22 was tried next and is damaged too: driven HIGH by the firmware it reads 0V (2026-11-03). The old module's IN1 measured 9V, which is the likely cause. Leave 22 and 23 unused.
 
 | From | To |
 |------|----|
@@ -225,7 +225,7 @@ Relay off = yellow unpowered = **closed**, so it closes after any crash, restart
 
 | # | Where | Should read | If it doesn't |
 |---|-------|-------------|---------------|
-| 1 | ESP32 GPIO 22 | ≈0V draining, 3.3V idle | Firmware isn't driving it, or the wire is on the wrong pin (labelled D22 or 22). If it reads well above 0V with the IN1 wire removed, the pin is damaged (as GPIO 23 was) |
+| 1 | ESP32 GPIO 21 | ≈0V draining, 3.3V idle | Firmware isn't driving it, or the wire is on the wrong pin (labelled D21 or 21). If it reads well above 0V with the IN1 wire removed, the pin is damaged (as GPIOs 22 and 23 were) |
 | 2 | Module 4 IN header, VCC | 3.3V; channel 1 LED lit | VCC isn't on the ESP32's 3V3. LED lit but no click: check point 3 |
 | 3 | Module 4 JD-VCC | 5.0V; relay clicks | Jumper must be off, JD-VCC on the 5V rail, JD-GND on GND |
 | 4 | F6 output | 12V | Fuse blown or not seated. If it blew, look for yellow or red shorted to blue |
@@ -305,11 +305,11 @@ To stay well inside 3A, the **firmware never moves the Pond Drain and Pond Fill 
 | 33 | Relay 4 IN (Pond Drain black) | Active LOW. See the relay table above |
 | 32 | Relay 5 IN (Pond Fill black) | Active LOW. See the relay table above |
 | 13 | Relay 6 IN (Pond Fill red) | Active LOW. See the relay table above |
-| 22 | Relay 7 IN (Storage Tank Drain) | Active LOW. LOW = OPEN, HIGH = CLOSED |
+| 21 | Relay 7 IN (Storage Tank Drain) | Active LOW. LOW = OPEN, HIGH = CLOSED |
 | 34 | Tank top sensor | Input only. HIGH = dry, LOW = water |
 | 35 | Tank refill sensor (second from top) | Input only. HIGH = dry, LOW = water |
 
-GPIOs 13/22/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves and Storage Tank Drain stay closed, the drain drives closed and Pond Fill drives open.
+GPIOs 13/21/25/26/27/32/33 are not strapping pins and don't glitch during boot. While the ESP32 boots, the modules' own pull-ups keep all relays off, so the filter valves and Storage Tank Drain stay closed, the drain drives closed and Pond Fill drives open.
 
 ---
 

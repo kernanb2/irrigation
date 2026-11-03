@@ -94,14 +94,14 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="192" y="466" class="pin" text-anchor="end">GPIO 13</text>
 <path class="w ws" d="M200 462 H300"/>
 <text x="308" y="466" class="pin">IN6</text>
-<text x="192" y="488" class="pin" text-anchor="end">GPIO 22</text>
+<text x="192" y="488" class="pin" text-anchor="end">GPIO 21</text>
 <path class="w ws" d="M200 484 H300"/>
 <text x="308" y="488" class="pin">IN7</text>
 <text x="308" y="510" class="pin">IN8</text>
 <text x="192" y="532" class="pin" text-anchor="end">3V3</text>
 <path class="w w33" d="M200 528 H300"/>
 <text x="308" y="532" class="pin">VCC</text>
-<text x="44" y="580" class="m">GPIO 23: damaged,</text>
+<text x="44" y="580" class="m">GPIO 22, 23: damaged,</text>
 <text x="44" y="596" class="m">leave empty</text>
 <text x="44" y="626" class="m">Later:</text>
 <text x="44" y="642" class="m">34, 35 tank sensors</text>
@@ -188,7 +188,7 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="1097" y="428" class="h" text-anchor="middle">K7</text>
 <text x="1097" y="450" text-anchor="middle">Tank drain</text>
 <text x="1097" y="470" class="m" text-anchor="middle">IN7</text>
-<text x="1097" y="486" class="m" text-anchor="middle">GPIO 22</text>
+<text x="1097" y="486" class="m" text-anchor="middle">GPIO 21</text>
 <circle cx="1056" cy="560" r="5" class="term"/>
 <text x="1056" y="550" class="tl" text-anchor="middle">NO</text>
 <circle cx="1096" cy="560" r="5" class="term"/>

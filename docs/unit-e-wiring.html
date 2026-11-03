@@ -151,14 +151,14 @@ ol.steps b { font-weight: 600; }
 <text x="192" y="466" class="pin" text-anchor="end">GPIO 13</text>
 <path class="w ws" d="M200 462 H300"/>
 <text x="308" y="466" class="pin">IN6</text>
-<text x="192" y="488" class="pin" text-anchor="end">GPIO 22</text>
+<text x="192" y="488" class="pin" text-anchor="end">GPIO 21</text>
 <path class="w ws" d="M200 484 H300"/>
 <text x="308" y="488" class="pin">IN7</text>
 <text x="308" y="510" class="pin">IN8</text>
 <text x="192" y="532" class="pin" text-anchor="end">3V3</text>
 <path class="w w33" d="M200 528 H300"/>
 <text x="308" y="532" class="pin">VCC</text>
-<text x="44" y="580" class="m">GPIO 23: damaged,</text>
+<text x="44" y="580" class="m">GPIO 22, 23: damaged,</text>
 <text x="44" y="596" class="m">leave empty</text>
 <text x="44" y="626" class="m">Later:</text>
 <text x="44" y="642" class="m">34, 35 tank sensors</text>
@@ -245,7 +245,7 @@ ol.steps b { font-weight: 600; }
 <text x="1097" y="428" class="h" text-anchor="middle">K7</text>
 <text x="1097" y="450" text-anchor="middle">Tank drain</text>
 <text x="1097" y="470" class="m" text-anchor="middle">IN7</text>
-<text x="1097" y="486" class="m" text-anchor="middle">GPIO 22</text>
+<text x="1097" y="486" class="m" text-anchor="middle">GPIO 21</text>
 <circle cx="1056" cy="560" r="5" class="term"/>
 <text x="1056" y="550" class="tl" text-anchor="middle">NO</text>
 <circle cx="1096" cy="560" r="5" class="term"/>
@@ -472,7 +472,7 @@ ol.steps b { font-weight: 600; }
         <tr><td class="k">K4</td><td>IN4</td><td class="k">33</td><td>Pond Drain black</td><td>Gy3 (F4)</td><td>Bu2</td><td>GND</td></tr>
         <tr><td class="k">K5</td><td>IN5</td><td class="k">32</td><td>Pond Fill black</td><td>GND</td><td>Bu3</td><td>Gy4 (F5)</td></tr>
         <tr><td class="k">K6</td><td>IN6</td><td class="k">13</td><td>Pond Fill red</td><td>Gy4 (F5)</td><td>Bu4</td><td>GND</td></tr>
-        <tr><td class="k">K7</td><td>IN7</td><td class="k">22</td><td>Storage Tank Drain</td><td>Y3</td><td>Gy5 (F6)</td><td>empty</td></tr>
+        <tr><td class="k">K7</td><td>IN7</td><td class="k">21</td><td>Storage Tank Drain</td><td>Y3</td><td>Gy5 (F6)</td><td>empty</td></tr>
         <tr><td class="k">K8</td><td>IN8</td><td>—</td><td>spare</td><td></td><td></td><td></td></tr>
       </tbody></table></div>
     <p class="sub" style="margin-top:10px">Header: VCC → ESP32 3V3, GND → ESP32 GND, JD-VCC → Bk2 (5V), JD-header GND → Gn2. Pull the JD-VCC↔VCC jumper. All eight coils at once draw about 0.6A from the 5V rail, which the LM2596 handles easily. GPIO numbers are the same as before, so the firmware doesn't change.</p>
@@ -480,7 +480,7 @@ ol.steps b { font-weight: 600; }
 
   <div class="note warn">
     <strong>Don't connect any IN pin to the ESP32 until step 5 passes.</strong>
-    <p>The old module's IN1 read 9V, and that probably killed GPIO 23. Every IN pin on the new module must read 3.3V or less before a GPIO touches it.</p>
+    <p>The old module's IN1 read 9V, and that probably killed GPIOs 22 and 23. Every IN pin on the new module must read 3.3V or less before a GPIO touches it.</p>
   </div>
 
   <section>
@@ -488,10 +488,10 @@ ol.steps b { font-weight: 600; }
     <ol class="steps">
       <li><b>Rail and 12V.</b> Mount the blocks and fit the bridges for red, green and black. Supply + → F1 → R1, and supply − → Gn1. Power on and check for <span class="v">12V</span> from each red block to each green block. Power off.</li>
       <li><b>5V.</b> Wire the LM2596 to R1 and Gn1, with its output disconnected. Set it to <span class="v">5.0V</span>, then connect OUT+ to Bk1. Check for <span class="v">5.0V</span> on Bk1–Bk3.</li>
-      <li><b>ESP32.</b> Connect Bk1 → VIN and ESP32 GND → Gn2. It should boot and join WiFi (solid blue LED). Unplug VIN before you plug in USB to flash, and flash the current firmware (GPIO 22 for the tank drain). Then check the GPIOs with nothing connected: 26, 27, 25, 33, 32, 13 and 22 should all read <span class="v">3.3V</span>.</li>
+      <li><b>ESP32.</b> Connect Bk1 → VIN and ESP32 GND → Gn2. It should boot and join WiFi (solid blue LED). Unplug VIN before you plug in USB to flash, and flash the current firmware (GPIO 21 for the tank drain). Then check the GPIOs with nothing connected: 26, 27, 25, 33, 32, 13 and 21 should all read <span class="v">3.3V</span>.</li>
       <li><b>Relay module power.</b> Pull the jumper, then wire JD-VCC → Bk2 and JD GND → Gn2. Wire VCC → ESP32 3V3 and GND → ESP32 GND. Don't connect any IN wires yet.</li>
       <li><b>IN pin check.</b> Measure IN1–IN8 to GND. Each should read <span class="v">3.3V or less</span>. Touch each IN to GND in turn: its LED should light and its relay should click. If any IN reads above 3.3V, stop and tell me.</li>
-      <li><b>Logic wires.</b> Run GPIO 26, 27, 25, 33, 32, 13 and 22 to IN1–IN7. Every relay should stay off.</li>
+      <li><b>Logic wires.</b> Run GPIO 26, 27, 25, 33, 32, 13 and 21 to IN1–IN7. Every relay should stay off.</li>
       <li><b>Filter 1.</b> Wire F2/Gy1/Y1 and the valve to Gy1, Y1 and Gn3. Press Flush now on the web page. The valve should open, then close.</li>
       <li><b>Filter 2.</b> Same as filter 1, using F3, Gy2 and Y2.</li>
       <li><b>Storage Tank Drain.</b> F6, Gy5 and Y3, with blue to Gn4. Don't press Drain Tank until the Pond Drain and Pond Fill work: Drain Tank moves them first.</li>
