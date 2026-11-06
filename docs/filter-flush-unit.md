@@ -64,7 +64,9 @@ Why it's wired this way:
 
 ### DIN Rail Layout (November 2026)
 
-Unit E is being rewired onto colour-coded DIN rail terminal blocks, with one Songle 8-relay module (K1–K8 = relays 1–8, same GPIOs) in place of the 2-relay modules. The full diagram, the block-by-block rail map and the stage-by-stage test order are in [unit-e-wiring.html](unit-e-wiring.html) (open it in a browser).
+Unit E is wired onto colour-coded DIN rail terminal blocks, with one Songle 8-relay module (K1–K8 = relays 1–8, same GPIOs except the tank drain on GPIO 21) in place of the 2-relay modules. The full diagram, the block-by-block rail map and the stage-by-stage test order are in [unit-e-wiring.html](unit-e-wiring.html) (open it in a browser).
+
+**Tested 2026-11-06: all 12 stages passed.** Power rails, ESP32 pins, the relay inputs, both filters, the Pond Drain (Open, 50% and Close), Pond Fill, and a full 10-minute Drain Tank run all work on the DIN layout. The relay board's terminals run NO, COM, NC from left to right.
 
 ![Unit E wiring](unit-e-wiring.svg)
 
