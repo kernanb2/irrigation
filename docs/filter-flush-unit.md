@@ -20,7 +20,7 @@ Each filter has its own independent flush cycle. The Pond Drain opens, closes, o
 |------|-------|
 | ESP32 dev board | Arduino IDE board: **ESP32 Dev Module** |
 | U.S. Solid **USS-MSV00202** ×2 (one per filter) | 1/2" stainless (SS304) motorized ball valve, full port, 9–24V AC/DC, **3-wire**, manual override. The actuator has internal limit switches, so it stops on its own at fully open / fully closed and draws almost nothing once in position. Travel time is about 5–8 s. |
-| U.S. Solid **USS-MSV00213** (Storage Tank Drain) | 1" motorized ball valve, **3-wire** (blue, red, yellow) — expected to work like the ½" filter valves; confirm on the bench. |
+| U.S. Solid **USS-MSV00213** (Storage Tank Drain) | 1" motorized ball valve, **3-wire** (blue, red, yellow). Confirmed 2026-11-04 to work like the ½" filter valves: blue GND, red constant +12V, yellow +12V = open. About 12.5 s to open fully. Yellow idles at about 0.6V from the valve's own electronics, which is normal. |
 | 12V 3A power supply | Powers everything |
 | BOKYWOX **A150-T50-S2-CR2-01-DC12V** (Pond Drain and Pond Fill, one each) | Tonhe A150 actuator (15 N·m) on a 2" SS304 2-way ball valve. **2-wire reverse polarity** (CR2-01): red + / black − closes, black + / red − opens. Stops itself at each end; if power is lost it stays where it is. ≤1A at 12V while moving, ≤11 s full travel, manual override. [Datasheet](http://www.motorized-valve.com/pdf/A150-motorized-valve.pdf) |
 | 2-relay module, Songle **SRD-05VDC-SL-C** ×3 | Module 1: relays 1–2 (filters). Module 2: relays 3–4 (Pond Drain). Module 3: relays 5–6 (Pond Fill). Module 4: relay 7 (Storage Tank Drain), relay 8 spare. 5V relay coils, contacts rated 10A @ 30VDC. Typical modules are **active-LOW** (IN pulled LOW = relay on) and opto-isolated. |
@@ -353,11 +353,11 @@ The **Pond Drain** card has:
 
 Opening (fully or partly) asks for confirmation first. The card shows the position, and while the drain moves it shows "Moving to 30% open — now about 12%".
 
-How partial open works: the valve has no position sensor, so the board **times** the motor. Full travel is `DRAIN_TRAVEL_MS` (11 s, from the datasheet). Opening to 30% from closed runs the motor for 30% of that, then switches to "hold" (relay 3 only). Moving from 30% to 60% runs it for another 30%, and so on. Fully open and fully closed run 2 s past the full travel time so the valve always reaches its end stop, which corrects any drift in the estimate.
+How partial open works: the valve has no position sensor, so the board **times** the motor. Full travel is `DRAIN_OPEN_MS` (9 s) when opening and `DRAIN_CLOSE_MS` (6.7 s) when closing, measured on 2026-11-05. A stopwatch close took 8 s, but timing 100% → 50% with 8 s overshot to about 40%, so the close time was lowered; full open and close still run 2 s past these times to reach the end stop. Opening to 30% from closed runs the motor for 30% of that, then switches to "hold" (relay 3 only). Moving from 30% to 60% runs it for another 30%, and so on. Fully open and fully closed run 2 s past the full travel time so the valve always reaches its end stop, which corrects any drift in the estimate.
 
 Keep in mind that a ball valve's flow isn't proportional to how far it's open: 30% open passes much less than 30% of full flow.
 
-**Calibrate the travel time:** from fully closed, press Open and time it until the valve's position indicator stops. If it isn't about 11 s, change `DRAIN_TRAVEL_MS` in the sketch and reflash.
+**Calibrate the travel time:** from fully closed, press Open and time it until the valve's position indicator stops; then time Close the same way. Put the times in `DRAIN_OPEN_MS` and `DRAIN_CLOSE_MS` and reflash.
 
 ### Pond Fill (Web Page)
 

@@ -50,14 +50,15 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 // ── Pond Drain ────────────────────────────────────────────────────────────────
 // BOKYWOX/Tonhe A150 2" valve, CR2-01 = 2-wire reverse polarity: red + / black −
 // closes, black + / red − opens; it stops itself at each end. No position sensor,
-// so partial positions are timed from DRAIN_TRAVEL_MS.
+// so partial positions are timed from DRAIN_OPEN_MS / DRAIN_CLOSE_MS.
 //   Relay 3 (GPIO 25): COM → red,   NC → +12V, NO → GND
 //   Relay 4 (GPIO 33): COM → black, NC → GND,  NO → +12V
 //   both off = CLOSE (also the power-off / crash state), both on = OPEN,
 //   relay 3 only = HOLD (both wires to GND, motor stopped)
 #define DRAIN_RD_PIN      25
 #define DRAIN_BK_PIN      33
-#define DRAIN_TRAVEL_MS   11000   // full closed→open time (datasheet ≤11 s) — measure and adjust
+#define DRAIN_OPEN_MS     9000    // full closed→open time, measured 2026-11-05
+#define DRAIN_CLOSE_MS    6700    // open→closed; stopwatch said 8 s, but 100→50% overshot to ~40%
 #define DRAIN_END_MARGIN_MS 2000  // extra drive at 0%/100% so it always reaches the end stop
 #define DRAIN_INDEX       2       // device number 3 in events (filters are 0 and 1)
 
@@ -73,7 +74,7 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 //   both off = OPEN (also the power-off / crash state), both on = CLOSE
 #define FILL_A_PIN        32
 #define FILL_B_PIN        13
-#define FILL_TRAVEL_MS    13000   // ≤11 s travel + margin to reach the end stop
+#define FILL_TRAVEL_MS    13000   // measured 9 s open / 8 s close (2026-11-06) + margin to reach the end stop
 #define FILL_INDEX        3       // device number 4 in events
 #define FILL_MAX_HOURS    24
 
@@ -85,7 +86,7 @@ const uint8_t RELAY_PIN[NUM_FILTERS] = {26, 27};
 // opens this valve. When the time is up, Stop is pressed or a Pond Drain button is
 // pressed, this valve closes first, then Pond Fill opens and the drain goes back.
 #define TANK_DRAIN_PIN    21      // GPIOs 22 and 23 on this board are damaged (23 can't pull LOW, 22 can't drive HIGH)
-#define TANK_DRAIN_TRAVEL_MS 15000 // counts as moving this long after switching — time it and adjust
+#define TANK_DRAIN_TRAVEL_MS 15000 // counts as moving this long after switching (measured 12.5 s full swing)
 #define TANK_DRAIN_INDEX  4       // device number 5 in events
 #define TANK_DRAIN_MIN_MIN 10
 #define TANK_DRAIN_MAX_MIN 120
@@ -283,6 +284,9 @@ void saveDrain() {
     prefs.end();
 }
 
+// The A150 closes a little faster than it opens
+unsigned long drainTravelMs(bool opening) { return opening ? DRAIN_OPEN_MS : DRAIN_CLOSE_MS; }
+
 void startDrainMove() {
     drain.movePending = false;
     float delta = drain.targetPct - drain.posPct;
@@ -292,10 +296,10 @@ void startDrainMove() {
         return;
     }
 
-    unsigned long ms = (unsigned long)(fabsf(delta) / 100.0f * DRAIN_TRAVEL_MS);
+    bool opening = drain.targetPct > drain.posPct;
+    unsigned long ms = (unsigned long)(fabsf(delta) / 100.0f * drainTravelMs(opening));
     if (drain.targetPct == 0 || drain.targetPct == 100) ms += DRAIN_END_MARGIN_MS;
 
-    bool opening = drain.targetPct > drain.posPct;
     setDrainDrive(opening ? DRIVE_OPEN : DRIVE_CLOSE);
     drain.moving      = true;
     drain.startPct    = drain.posPct;
@@ -320,8 +324,9 @@ void runDrain() {
     unsigned long now = millis();
 
     if (drain.moving) {
-        float done = (float)(now - drain.moveStartMs) / DRAIN_TRAVEL_MS * 100.0f;
-        drain.posPct = drain.targetPct > drain.startPct
+        bool opening = drain.targetPct > drain.startPct;
+        float done = (float)(now - drain.moveStartMs) / drainTravelMs(opening) * 100.0f;
+        drain.posPct = opening
                      ? min(drain.startPct + done, (float)drain.targetPct)
                      : max(drain.startPct - done, (float)drain.targetPct);
         if ((long)(now - drain.moveEndMs) >= 0) {
