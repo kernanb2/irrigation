@@ -188,6 +188,11 @@ main {
   border-bottom: 1px solid var(--border);
 }
 
+.wifi-badge { float: right; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.wifi-badge.good { color: var(--green); }
+.wifi-badge.fair { color: var(--orange); }
+.wifi-badge.weak { color: var(--red); }
+
 .zone-card {
   background: var(--card);
   border: 1px solid var(--border);

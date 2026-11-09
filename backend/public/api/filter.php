@@ -72,4 +72,5 @@ echo json_encode([
     'tank_drain' => ['desired' => TankDrain::desired(), 'reported' => $reportData['tank_drain'] ?? null],
     'online'    => $u && $u['seen_ago'] !== null && (int)$u['seen_ago'] < FilterFlush::ONLINE_SEC,
     'last_seen' => $u['last_seen'] ?? null,
+    'rssi'      => $reportData['rssi'] ?? null,
 ]);

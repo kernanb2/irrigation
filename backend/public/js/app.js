@@ -152,12 +152,20 @@ function renderExtraUnits() {
     box.innerHTML = `
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
-      <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond</div>
+      <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond${wifiBadge()}</div>
       ${filter ? pondDiagram() : ''}
       ${(filter?.filters || []).map(filterCard).join('')}
       ${filter?.drain ? drainCard(filter.drain) : ''}
       ${filter?.fill ? fillCard(filter.fill) : ''}
       ${filter?.tank_drain ? tankDrainCard(filter.tank_drain) : ''}`;
+}
+
+// WiFi signal from Unit E's last report. Check-ins started failing at -83 dBm.
+function wifiBadge() {
+    const rssi = filter?.rssi;
+    if (!filter?.online || rssi == null) return '';
+    const [label, cls] = rssi >= -67 ? ['good', 'good'] : rssi >= -75 ? ['fair', 'fair'] : ['weak', 'weak'];
+    return `<span class="wifi-badge ${cls}" title="WiFi signal strength">WiFi ${rssi} dBm · ${label}</span>`;
 }
 
 function drainCard(d) {
