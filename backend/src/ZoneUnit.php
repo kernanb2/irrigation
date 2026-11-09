@@ -88,7 +88,8 @@ class ZoneUnit {
             $stateStmt->execute([$state, $state, $unitId, $i]);
         }
 
-        $report = json_encode(['valves' => $valves, 'uptime_s' => (int)($body['uptime_s'] ?? 0)]);
+        $report = json_encode(['valves' => $valves, 'uptime_s' => (int)($body['uptime_s'] ?? 0),
+                              'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null]);
         $db->prepare("
             INSERT INTO unit_status (unit_id, report) VALUES (?, ?)
             ON DUPLICATE KEY UPDATE report = VALUES(report)

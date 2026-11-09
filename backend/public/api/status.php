@@ -29,8 +29,10 @@ $zones = $db->query("
 
 // Zone units are online if they checked in recently (they check in every 5 s)
 $units = $db->query("
-    SELECT id, last_seen, TIMESTAMPDIFF(SECOND, last_seen, NOW()) < " . ZoneUnit::ONLINE_SEC . " AS online
-    FROM units WHERE id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
+    SELECT u.id, u.last_seen, TIMESTAMPDIFF(SECOND, u.last_seen, NOW()) < " . ZoneUnit::ONLINE_SEC . " AS online,
+           JSON_EXTRACT(s.report, '$.rssi') AS rssi
+    FROM units u LEFT JOIN unit_status s ON s.unit_id = u.id
+    WHERE u.id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
 ")->fetchAll();
 
 $temps = $db->query("

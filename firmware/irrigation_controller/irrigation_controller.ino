@@ -136,6 +136,7 @@ void fillStatus(JsonDocument& doc) {
     doc["unit_id"]  = UNIT_ID;
     doc["ip"]       = WiFi.localIP().toString();
     doc["uptime_s"] = now / 1000;
+    doc["rssi"]     = WiFi.RSSI();   // dBm, shown on the dashboard
     JsonArray arr = doc["valves"].to<JsonArray>();
     for (uint8_t z = 0; z < NUM_ZONES; z++) {
         JsonObject o = arr.add<JsonObject>();
