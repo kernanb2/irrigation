@@ -644,6 +644,7 @@ void fillStatus(JsonDocument& doc) {
 
     doc["uptime_s"] = now / 1000;
     doc["ip"]       = WiFi.localIP().toString();
+    doc["rssi"]     = WiFi.RSSI();   // dBm; worse than about -75 and check-ins start failing
 }
 
 // ── Server report / poll ──────────────────────────────────────────────────────
