@@ -46,7 +46,10 @@ Auth::require();
       <div class="loading">Loading zones…</div>
     </div>
 
-    <!-- Units D and E (rendered separately so polling doesn't reset an open dropdown) -->
+    <!-- Unit D pond level (built once; polling only updates its text and graph) -->
+    <div id="pondLevel" class="zone-grid"></div>
+
+    <!-- Unit E (rendered separately so polling doesn't reset an open dropdown) -->
     <div id="extraUnits" class="zone-grid"></div>
 
     <!-- Schedules panel -->
@@ -111,6 +114,7 @@ Auth::require();
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script>const BASE = '<?= BASE_PATH ?>';</script>
   <script src="<?= BASE_PATH ?>/js/app.js?v=<?= filemtime(__DIR__ . '/js/app.js') ?>"></script>
 </body>

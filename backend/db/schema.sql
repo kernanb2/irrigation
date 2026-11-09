@@ -79,7 +79,12 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (17, 5, 1, 'Pondwater Pre-filter-2', FALSE, 'Flush valve, GPIO 27 — controlled by the flush cycle'),
 (18, 5, 2, 'Pond Drain',             FALSE, '2" drain valve, relays 3+4 (GPIO 25/33) — supports partial open'),
 (19, 5, 3, 'Pond Fill',              FALSE, '2" valve, relays 5+6 (GPIO 32/13) — normally open'),
-(20, 5, 4, 'Storage Tank Drain',     FALSE, '1" valve, relay 7 (GPIO 21) — normally closed');
+(20, 5, 4, 'Storage Tank Drain',     FALSE, '1" valve, relay 7 (GPIO 21) — normally closed'),
+-- Unit D irrigation zones (4 zones, ids follow on after Unit E's)
+(21, 4, 0, 'Zone 21',           FALSE, NULL),
+(22, 4, 1, 'Zone 22',           FALSE, NULL),
+(23, 4, 2, 'Zone 23',           FALSE, NULL),
+(24, 4, 3, 'Zone 24',           FALSE, NULL);
 
 -- ── Moisture sensor readings ──────────────────────────────────────────────────
 CREATE TABLE moisture_readings (
@@ -90,6 +95,16 @@ CREATE TABLE moisture_readings (
     recorded_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (zone_id) REFERENCES zones(id),
     INDEX idx_zone_time (zone_id, recorded_at)
+);
+
+-- ── Pond level (Unit D ultrasonic sensor) ─────────────────────────────────────
+-- One row every 30 minutes: distance from the sensor down to the water (mm).
+-- Smaller distance = higher water.
+CREATE TABLE pond_level_readings (
+    id          INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    distance_mm SMALLINT UNSIGNED NOT NULL,
+    recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_time (recorded_at)
 );
 
 -- ── Temperature sensor readings ───────────────────────────────────────────────
@@ -151,7 +166,7 @@ CREATE TABLE sensor_calibration (
 
 -- A zone without a row here has no moisture sensor (zone 1, Creek Source)
 INSERT INTO sensor_calibration (zone_id, dry_value, wet_value)
-SELECT id, 3300, 1300 FROM zones WHERE id BETWEEN 2 AND 15;
+SELECT id, 3300, 1300 FROM zones WHERE id BETWEEN 2 AND 15 OR id BETWEEN 21 AND 24;
 
 -- ── System settings ───────────────────────────────────────────────────────────
 CREATE TABLE settings (
@@ -180,7 +195,8 @@ INSERT INTO settings (key_name, value) VALUES
 ('fill_cmd_seq',              '0'),
 ('tank_drain_minutes',        '30'),   -- Unit E Storage Tank Drain run length (10–120 min)
 ('tank_drain_active',         'false'),
-('tank_drain_cmd_seq',        '0');
+('tank_drain_cmd_seq',        '0'),
+('pond_normal_distance_mm',   '');   -- Unit D pond level: distance at normal level ('' = not set)
 
 -- ── Create application DB user (run as root) ──────────────────────────────────
 -- CREATE USER 'irrigation_user'@'localhost' IDENTIFIED BY 'CHANGE_THIS_PASSWORD';

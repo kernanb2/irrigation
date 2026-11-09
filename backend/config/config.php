@@ -14,7 +14,7 @@ define('DEVICE_KEYS_FILE', __DIR__ . '/device_keys.php');
 define('APP_NAME', 'Irrigation Controller');
 define('APP_URL',   'https://paradisepond.tech/irrigation');
 define('BASE_PATH', '/irrigation');
-define('TIMEZONE', 'America/Chicago');  // adjust to your timezone
+define('TIMEZONE', 'America/Los_Angeles');  // Pacific, same as the server's clock
 
 // ── Session ───────────────────────────────────────────────────────────────────
 define('SESSION_NAME',    'irrigation_session');

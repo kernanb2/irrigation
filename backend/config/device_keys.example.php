@@ -7,5 +7,6 @@ return [
     'unit-a'       => ['key' => 'CHANGE_ME', 'unit_id' => 1],
     'unit-b'       => ['key' => 'CHANGE_ME', 'unit_id' => 2],
     'unit-c'       => ['key' => 'CHANGE_ME', 'unit_id' => 3],
+    'unit-d'       => ['key' => 'CHANGE_ME', 'unit_id' => 4],
     'filter-flush' => ['key' => 'CHANGE_ME', 'unit_id' => 5],
 ];

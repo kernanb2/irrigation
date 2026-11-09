@@ -20,7 +20,7 @@ $zoneId   = (int)($body['zone_id'] ?? 0);
 $open     = (bool)($body['open']    ?? false);
 $duration = (int)($body['duration_sec'] ?? 0);   // 0 = the maximum (max_zone_duration_sec)
 
-if ($zoneId < 1 || $zoneId > 15) {
+if (!ZoneUnit::isIrrigationZone($zoneId)) {
     echo json_encode(['error' => 'Invalid zone_id']);
     exit;
 }
@@ -47,7 +47,7 @@ if ($open && $z['is_special']) {
     if ($setting === 'true') {
         $other = $db->prepare("
             SELECT id FROM zones
-            WHERE is_special = 1 AND id != ? AND id <= 15
+            WHERE is_special = 1 AND id != ? AND unit_id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
               AND (valve_state = 'open' OR (desired_state = 'open' AND desired_until > NOW()))
         ");
         $other->execute([$z['id']]);

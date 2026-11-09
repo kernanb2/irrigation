@@ -5,10 +5,12 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ArduinoJson.h>
+#include <algorithm>
 #include "secrets.h"   // git-ignored — copy from secrets.example.h
 
 // ── Which unit this board is ──────────────────────────────────────────────────
-// Set in secrets.h together with that unit's key: 1 = Unit A, 2 = B, 3 = C.
+// Set in secrets.h together with that unit's key: 1 = Unit A, 2 = B, 3 = C, 4 = D.
+// Unit D has four zones and the pond level sensor.
 #define UNIT_ID           SECRET_UNIT_ID
 
 // ── WiFi credentials ─────────────────────────────────────────────────────────
@@ -17,24 +19,44 @@ const char* WIFI_PASSWORD = SECRET_WIFI_PASSWORD;
 
 // ── Central server ────────────────────────────────────────────────────────────
 // The board checks in every CHECKIN_MS; the reply says which valves should be
-// open and for how many more seconds. Key = 'unit-a' / 'unit-b' / 'unit-c'
-// in backend/config/device_keys.php.
+// open and for how many more seconds. Key = 'unit-a' … 'unit-d' in
+// backend/config/device_keys.php.
 const char* SERVER_URL    = "http://paradisepond.tech/irrigation";
 const char* API_KEY       = SECRET_API_KEY;
 #define CHECKIN_MS        5000UL   // also how fast Open/Close on the web page takes effect
 #define HTTP_TIMEOUT_MS   3000
-#define SENSOR_REPORT_MS  60000UL  // moisture + temperature go with one check-in a minute
+#define SENSOR_REPORT_MS  60000UL  // moisture, temperature (and pond level) go with one check-in a minute
 
 // ── Hardware pin assignments ──────────────────────────────────────────────────
 #define LED_BUILTIN_PIN   2
 #define ONE_WIRE_PIN      21
-#define NUM_ZONES         5
 
 // DRV8871 per zone: IN1/IN2. GPIO 12 is a strapping pin and must be LOW at boot —
 // the DRV8871's own input pull-downs keep it LOW.
+#if UNIT_ID == 4
+#define NUM_ZONES         4
+#define POND_SENSOR       1
+const uint8_t VALVE_IN1[NUM_ZONES]    = {4,  12, 14, 16};
+const uint8_t VALVE_IN2[NUM_ZONES]    = {5,  13, 15, 17};
+const uint8_t MOISTURE_PIN[NUM_ZONES] = {32, 33, 34, 35};   // DFRobot SEN0308
+#else
+#define NUM_ZONES         5
+#define POND_SENSOR       0
 const uint8_t VALVE_IN1[NUM_ZONES]    = {4,  12, 14, 16, 18};
 const uint8_t VALVE_IN2[NUM_ZONES]    = {5,  13, 15, 17, 19};
 const uint8_t MOISTURE_PIN[NUM_ZONES] = {32, 33, 34, 35, 36};
+#endif
+
+// ── Pond level (Unit D) ───────────────────────────────────────────────────────
+// Taidacent waterproof ultrasonic sensor, UART 9600 8N1, mounted above the water
+// looking down. Each frame is 0xFF, high byte, low byte, checksum (low 8 bits of
+// the sum of the first three); the distance is high × 256 + low in mm. The
+// "auto output" version sends frames on its own; the "controlled" version answers
+// a byte on its RX, so the board sends one whenever frames stop arriving.
+#define POND_RX_PIN       26        // ← sensor TX (pin 4, white)
+#define POND_TX_PIN       27        // → sensor RX (pin 3, yellow). Power it from 3.3V (red, black = GND)
+#define POND_SAMPLES      15        // median of the latest readings, to ride out ripples
+#define POND_STALE_MS     10000UL   // no reading for this long = sensor not answering
 
 // ── Valves ────────────────────────────────────────────────────────────────────
 // Rainbird 9V latching solenoids: a 100 ms pulse switches them, and they stay
@@ -58,6 +80,15 @@ unsigned long lastCheckinMs  = 0;
 unsigned long lastSensorMs   = 0;
 bool          sensorsDue     = true;   // send readings with the first check-in
 
+#if POND_SENSOR
+uint16_t      pondSamples[POND_SAMPLES];
+uint8_t       pondCount      = 0, pondNext = 0;
+unsigned long pondLastMs     = 0;       // last good frame
+unsigned long pondPollMs     = 0;
+uint8_t       pondFrame[4];
+uint8_t       pondPos        = 0;
+#endif
+
 // ── Valve event queue ─────────────────────────────────────────────────────────
 // Every open/close is queued and sent with the next check-in, so moves during a
 // WiFi outage still reach the event log. seq starts at 1 each boot; the server
@@ -67,7 +98,7 @@ const char* REASON_NAME[] = {"server", "timer", "restart"};
 
 struct ValveEvent {
     uint32_t      seq;
-    uint8_t       zone;          // local index 0–4
+    uint8_t       zone;          // local index 0 to NUM_ZONES - 1
     bool          open;
     Reason        reason;
     unsigned long atMs;
@@ -147,10 +178,50 @@ void fillStatus(JsonDocument& doc) {
     }
 }
 
+#if POND_SENSOR
+// Read whatever bytes have arrived and keep each good frame's distance
+void readPond() {
+    while (Serial2.available()) {
+        uint8_t b = Serial2.read();
+        if (pondPos == 0 && b != 0xFF) continue;   // wait for a frame start
+        pondFrame[pondPos++] = b;
+        if (pondPos < 4) continue;
+        pondPos = 0;
+        if (((pondFrame[0] + pondFrame[1] + pondFrame[2]) & 0xFF) != pondFrame[3]) continue;
+        uint16_t mm = pondFrame[1] << 8 | pondFrame[2];
+        if (mm == 0) continue;                     // nothing in range
+        pondSamples[pondNext] = mm;
+        pondNext = (pondNext + 1) % POND_SAMPLES;
+        if (pondCount < POND_SAMPLES) pondCount++;
+        pondLastMs = millis();
+    }
+    // Controlled-output sensors only measure when asked
+    if (millis() - pondLastMs > 1000 && millis() - pondPollMs > 300) {
+        pondPollMs = millis();
+        Serial2.write(0x55);
+    }
+}
+
+// Median of the recent readings in mm, or 0 when the sensor has gone quiet
+uint16_t pondDistanceMm() {
+    if (pondCount == 0 || millis() - pondLastMs > POND_STALE_MS) return 0;
+    uint16_t sorted[POND_SAMPLES];
+    memcpy(sorted, pondSamples, sizeof(uint16_t) * pondCount);
+    std::sort(sorted, sorted + pondCount);
+    return sorted[pondCount / 2];
+}
+#endif
+
 void fillSensors(JsonDocument& doc) {
     JsonObject s = doc["sensors"].to<JsonObject>();
     JsonArray m  = s["moisture"].to<JsonArray>();
     for (uint8_t z = 0; z < NUM_ZONES; z++) m.add(analogRead(MOISTURE_PIN[z]));   // 0–4095, dry = high
+
+#if POND_SENSOR
+    uint16_t mm = pondDistanceMm();
+    if (mm) s["pond_mm"] = mm;
+    else    s["pond_mm"] = nullptr;   // the server shows "no reading"
+#endif
 
     tempSensors.requestTemperatures();
     s["temp_c"] = tempSensors.getTempCByIndex(0);   // -127 = no sensor connected
@@ -259,6 +330,9 @@ void setup() {
     pinMode(LED_BUILTIN_PIN, OUTPUT);
 
     Serial.begin(115200);
+#if POND_SENSOR
+    Serial2.begin(9600, SERIAL_8N1, POND_RX_PIN, POND_TX_PIN);
+#endif
     bootId = esp_random();
     tempSensors.begin();
 
@@ -290,6 +364,9 @@ void setup() {
 void loop() {
     server.handleClient();
     runTimers();
+#if POND_SENSOR
+    readPond();
+#endif
 
     bool online = WiFi.status() == WL_CONNECTED;
     digitalWrite(LED_BUILTIN_PIN, online ? HIGH : (millis() / 250) % 2);   // solid = online, blink = no WiFi

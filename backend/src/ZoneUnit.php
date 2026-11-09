@@ -1,11 +1,12 @@
 <?php
-// Zone units A–C (unit ids 1–3). The server can't reach the boards, so each board
+// Zone units A–D (unit ids 1–4). The server can't reach the boards, so each board
 // checks in every few seconds (api/unit_report.php) and the reply carries the
-// desired state of its five valves. An open valve always has an end time
+// desired state of its valves (five each on A–C, four on D, which also reports the
+// pond level). An open valve always has an end time
 // (desired_until); the board closes it itself when that passes, even offline.
 class ZoneUnit {
-    const UNIT_IDS   = [1, 2, 3];
-    const NUM_ZONES  = 5;
+    const UNIT_IDS   = [1, 2, 3, 4];
+    const ZONE_COUNT = [1 => 5, 2 => 5, 3 => 5, 4 => 4];
     const ONLINE_SEC = 30;   // boards check in every 5 s
     // Capacitive sensors read ~1300 (wet) to ~3300 (dry). An unconnected input reads
     // near 0, which would look like soaking wet — store the raw value but no percentage.
@@ -15,6 +16,17 @@ class ZoneUnit {
     public static function maxDuration(): int {
         $v = (int)Database::get()->query("SELECT value FROM settings WHERE key_name = 'max_zone_duration_sec'")->fetchColumn();
         return $v > 0 ? min($v, MAX_ZONE_DURATION_SEC) : MAX_ZONE_DURATION_SEC;
+    }
+
+    public static function zoneCount(int $unitId): int {
+        return self::ZONE_COUNT[$unitId] ?? 0;
+    }
+
+    // Irrigation zones are the ones on Units A–D (Unit E's valves are run by their own cycles)
+    public static function isIrrigationZone(int $zoneId): bool {
+        $stmt = Database::get()->prepare("SELECT unit_id FROM zones WHERE id = ?");
+        $stmt->execute([$zoneId]);
+        return in_array((int)$stmt->fetchColumn(), self::UNIT_IDS, true);
     }
 
     public static function isOnline(int $unitId): bool {
@@ -58,10 +70,10 @@ class ZoneUnit {
         ");
         $stmt->execute([$unitId]);
 
-        $out = array_fill(0, self::NUM_ZONES, ['open' => false, 'run_s' => 0]);
+        $out = array_fill(0, self::zoneCount($unitId), ['open' => false, 'run_s' => 0]);
         foreach ($stmt as $r) {
             $i = (int)$r['local_index'];
-            if ($i >= self::NUM_ZONES) continue;
+            if ($i >= self::zoneCount($unitId)) continue;
             $open    = $r['desired_state'] === 'open' && $r['enabled'] && (int)$r['run_s'] > 0;
             $out[$i] = ['open' => $open, 'run_s' => $open ? (int)$r['run_s'] : 0];
         }
@@ -81,16 +93,33 @@ class ZoneUnit {
             UPDATE zones SET valve_state = ?, last_state_change = IF(valve_state = ?, last_state_change, NOW())
             WHERE unit_id = ? AND local_index = ?
         ");
-        foreach (array_slice($body['valves'] ?? [], 0, self::NUM_ZONES) as $i => $v) {
+        foreach (array_slice($body['valves'] ?? [], 0, self::zoneCount($unitId)) as $i => $v) {
             if (!is_array($v)) continue;
             $state    = ($v['open'] ?? false) ? 'open' : 'closed';
             $valves[] = ['open' => $state === 'open', 'remaining_s' => max(0, (int)($v['remaining_s'] ?? 0))];
             $stateStmt->execute([$state, $state, $unitId, $i]);
         }
 
-        $report = json_encode(['valves' => $valves, 'uptime_s' => (int)($body['uptime_s'] ?? 0),
-                              'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null,
-                              'bssid' => isset($body['bssid']) ? substr((string)$body['bssid'], 0, 17) : null]);
+        $report = ['valves' => $valves, 'uptime_s' => (int)($body['uptime_s'] ?? 0),
+                   'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null,
+                   'bssid' => isset($body['bssid']) ? substr((string)$body['bssid'], 0, 17) : null];
+
+        // Unit D: the pond reading comes with the sensors (once a minute). Keep the last
+        // one between those reports so the dashboard always has it.
+        $pondMm = null;
+        if ($unitId === PondLevel::UNIT_ID) {
+            $prev = $db->prepare("SELECT report FROM unit_status WHERE unit_id = ?");
+            $prev->execute([$unitId]);
+            $old = json_decode((string)$prev->fetchColumn(), true) ?: [];
+            $report['pond_mm'] = $old['pond_mm'] ?? null;
+            $report['pond_at'] = $old['pond_at'] ?? null;
+            if (array_key_exists('pond_mm', $body['sensors'] ?? [])) {
+                $pondMm = PondLevel::valid($body['sensors']['pond_mm']) ? (int)$body['sensors']['pond_mm'] : null;
+                $report['pond_mm'] = $pondMm;
+                $report['pond_at'] = $db->query("SELECT NOW()")->fetchColumn();   // same clock as last_seen
+            }
+        }
+        $report = json_encode($report);
         $db->prepare("
             INSERT INTO unit_status (unit_id, report) VALUES (?, ?)
             ON DUPLICATE KEY UPDATE report = VALUES(report)
@@ -104,6 +133,7 @@ class ZoneUnit {
             if (is_array($body['sensors'] ?? null)) {
                 self::storeSensors($unitId, $body['sensors']);
             }
+            if ($pondMm !== null) PondLevel::record($pondMm);
         } catch (Throwable $e) {
             error_log("Unit $unitId report storage failed: " . $e->getMessage());
         }
@@ -162,7 +192,7 @@ class ZoneUnit {
             WHERE z.unit_id = ? AND z.local_index = ?
         ");
         $insert = $db->prepare("INSERT INTO moisture_readings (zone_id, raw_value, moisture_pct) VALUES (?, ?, ?)");
-        foreach (array_slice($s['moisture'] ?? [], 0, self::NUM_ZONES) as $i => $raw) {
+        foreach (array_slice($s['moisture'] ?? [], 0, self::zoneCount($unitId)) as $i => $raw) {
             if (!is_numeric($raw)) continue;
             $zoneStmt->execute([$unitId, $i]);
             $z = $zoneStmt->fetch();

@@ -1,11 +1,12 @@
 <?php
-// Called by zone Units A–C every 5 seconds — API key auth, no session required.
+// Called by zone Units A–D every 5 seconds — API key auth, no session required.
 // Stores valve states, events and sensor readings, and replies with the desired
-// valve states: {"zones": [{"open": bool, "run_s": seconds left}, ×5]}.
+// valve states: {"zones": [{"open": bool, "run_s": seconds left}, one per zone]}.
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/ZoneUnit.php';
+require_once __DIR__ . '/../../src/PondLevel.php';
 
 header('Content-Type: application/json');
 

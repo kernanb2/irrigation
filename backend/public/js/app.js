@@ -2,6 +2,8 @@
 let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
 let fillHoursChoice = null;   // Pond Fill run time picked on the card (sent with Start)
 let tankDrainMinutesChoice = null;   // Storage Tank Drain run time picked on the card
+let pond = null, pondChart = null, pondHistoryMs = 0;   // Unit D pond level
+let pondDays = (() => { try { return parseInt(localStorage.getItem('pondDays')) || 7; } catch { return 7; } })();
 let pondDiagramOpen = (() => { try { return localStorage.getItem('pondDiagramOpen') !== 'false'; } catch { return true; } })();
 const POLL_MS = 15000;
 
@@ -45,6 +47,7 @@ async function fetchAll() {
         zones     = status.zones     || [];
         schedules = status.schedules || [];
         units     = Object.fromEntries((status.units || []).map(u => [u.id, u]));
+        pond      = status.pond || null;
 
         // Follow a zone valve until its unit has picked up the change (one timer at a time)
         if (zones.some(z => units[z.unit_id]?.online == 1 && z.desired_state !== z.valve_state) && !zoneFollowTimer) {
@@ -63,6 +66,7 @@ async function fetchAll() {
 
         renderUnitPills();
         renderZones();
+        renderPond();
         renderExtraUnits();
         renderSchedules();
         renderEvents(events);
@@ -87,12 +91,12 @@ function renderZones() {
     const grid = document.getElementById('zoneGrid');
     let html = '';
 
-    const byUnit = { 1: [], 2: [], 3: [] };
+    const byUnit = { 1: [], 2: [], 3: [], 4: [] };
     zones.forEach(z => (byUnit[z.unit_id] || []).push(z));
 
-    const unitNames = { 1: 'Unit A — Zones 1–5', 2: 'Unit B — Zones 6–10', 3: 'Unit C — Zones 11–15' };
+    const unitNames = { 1: 'Unit A — Zones 1–5', 2: 'Unit B — Zones 6–10', 3: 'Unit C — Zones 11–15', 4: 'Unit D — Zones 21–24' };
 
-    [1, 2, 3].forEach(uid => {
+    [1, 2, 3, 4].forEach(uid => {
         html += `<div class="zone-unit-header">${unitNames[uid]}${wifiBadge(units[uid]?.online == 1, units[uid]?.rssi, units[uid]?.ap)}</div>`;
         byUnit[uid].forEach(z => { html += zoneCard(z); });
     });
@@ -143,15 +147,150 @@ function zoneCard(z) {
     </div>`;
 }
 
-// ── Units D and E ─────────────────────────────────────────────────────────────
+// ── Unit D pond level ─────────────────────────────────────────────────────────
+// "▲ 2.5 in above normal" etc.; null when there's no reading or no normal level yet
+function pondOffsetText(offset) {
+    if (offset == null) return null;
+    if (Math.abs(offset) < 0.1) return { arrow: '●', amount: 'At', words: 'normal level', cls: 'level-ok' };
+    return offset > 0
+        ? { arrow: '▲', amount: `${offset.toFixed(1)} in`, words: 'above normal', cls: 'level-up' }
+        : { arrow: '▼', amount: `${Math.abs(offset).toFixed(1)} in`, words: 'below normal', cls: 'level-down' };
+}
+
+function renderPond() {
+    const box = document.getElementById('pondLevel');
+    if (!box.firstElementChild) {
+        box.innerHTML = `
+          <div class="pond-card">
+            <div class="zone-header">
+              <div>
+                <div class="zone-name">Pond Level</div>
+                <div class="zone-id">Ultrasonic sensor on Unit D · recorded every 30 minutes</div>
+              </div>
+              <button class="btn-close" id="pondNormalBtn" onclick="setPondNormal()">Set current level as normal</button>
+            </div>
+            <div class="pond-now"><span id="pondOffset" class="pond-offset"></span> <span id="pondDetail" class="zone-sensors"></span></div>
+            <div class="pond-range">
+              ${[[1, '24 hours'], [7, '7 days'], [30, '30 days']].map(([d, t]) =>
+                `<button data-days="${d}" onclick="setPondDays(${d})">${t}</button>`).join('')}
+            </div>
+            <div class="pond-chart"><canvas id="pondChart" aria-label="Pond level graph"></canvas>
+              <div id="pondChartEmpty" class="zone-sensors">No readings yet.</div></div>
+          </div>`;
+    }
+
+    const online = pond?.online;
+    const mm     = pond?.distance_mm;
+    const off    = pondOffsetText(pond?.offset_in);
+    const offEl  = document.getElementById('pondOffset');
+    offEl.className   = 'pond-offset ' + (off?.cls || '');
+    offEl.textContent = off ? `${off.arrow} ${off.amount} ${off.words}` : '';
+
+    let detail;
+    if (!online) {
+        const seen = units[4]?.last_seen;
+        detail = 'Unit D offline' + (seen ? ` — last seen ${new Date(seen).toLocaleString()}` : '');
+    } else if (mm == null) {
+        detail = 'No reading from the sensor — check its wiring';
+    } else {
+        detail = `Water is ${(mm / 25.4).toFixed(1)} in below the sensor`
+            + (pond.normal_mm == null ? ' · normal level not set yet' : '');
+    }
+    document.getElementById('pondDetail').textContent = detail;
+    document.getElementById('pondNormalBtn').disabled = !online || mm == null;
+    document.querySelectorAll('.pond-range button').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.days) === pondDays));
+
+    // A new reading is stored every 30 minutes, so refreshing the graph every 5 is plenty
+    if (Date.now() - pondHistoryMs > 5 * 60000) loadPondHistory();
+}
+
+function setPondDays(days) {
+    pondDays = days;
+    try { localStorage.setItem('pondDays', days); } catch {}
+    document.querySelectorAll('.pond-range button').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.days) === pondDays));
+    loadPondHistory();
+}
+
+async function loadPondHistory() {
+    pondHistoryMs = Date.now();
+    try {
+        const res  = await apiFetch(`/api/pond_level.php?days=${pondDays}`);
+        const data = await res.json();
+        drawPondChart(data.readings || [], data.pond?.normal_mm ?? null);
+    } catch (e) {
+        console.error('Pond history failed:', e);
+    }
+}
+
+// Against the normal level once it's set; before that, inches below the sensor
+// (drawn negative, so higher water is still higher on the graph)
+function drawPondChart(readings, normalMm) {
+    const empty = document.getElementById('pondChartEmpty');
+    empty.style.display = readings.length ? 'none' : '';
+    if (typeof Chart === 'undefined') { empty.textContent = 'Graph library did not load.'; empty.style.display = ''; return; }
+
+    const css    = getComputedStyle(document.documentElement);
+    const color  = n => css.getPropertyValue(n).trim();
+    const points = readings.map(r => ({
+        x: new Date(r.at.replace(' ', 'T')).getTime(),
+        y: +((normalMm != null ? normalMm - r.mm : -r.mm) / 25.4).toFixed(1),
+    }));
+    const yTitle = normalMm != null ? 'Inches above / below normal' : 'Inches below sensor';
+    const fmt    = ms => new Date(ms).toLocaleString([], pondDays === 1
+        ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric' });
+
+    if (pondChart) pondChart.destroy();
+    pondChart = new Chart(document.getElementById('pondChart'), {
+        type: 'line',
+        data: { datasets: [{
+            data: points, borderColor: color('--blue'), backgroundColor: color('--blue'),
+            borderWidth: 2, pointRadius: points.length > 60 ? 0 : 2, tension: 0.25,
+        }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: {
+                    title: items => new Date(items[0].parsed.x).toLocaleString(),
+                    label: item => `${item.parsed.y > 0 ? '+' : ''}${item.parsed.y} in`,
+                } },
+            },
+            scales: {
+                x: { type: 'linear', ticks: { color: color('--muted'), callback: fmt, maxTicksLimit: 8 },
+                     grid: { color: color('--border') } },
+                y: { title: { display: true, text: yTitle, color: color('--muted') },
+                     ticks: { color: color('--muted') },
+                     grid: { color: ctx => normalMm != null && ctx.tick.value === 0 ? color('--green') : color('--border') } },
+            },
+        },
+    });
+}
+
+async function setPondNormal() {
+    const off = pond?.offset_in;
+    const msg = 'Make the current pond level the normal level?'
+        + (off != null ? `\n\nIt is now ${Math.abs(off).toFixed(1)} in ${off >= 0 ? 'above' : 'below'} the old normal.` : '');
+    if (!confirm(msg)) return;
+    const res  = await apiFetch('/api/pond_level.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set_normal' }),
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    pond = data.pond;
+    renderPond();
+    loadPondHistory();
+}
+
+// ── Unit E ────────────────────────────────────────────────────────────────────
 function renderExtraUnits() {
     const box = document.getElementById('extraUnits');
     // Don't rebuild while a dropdown is open — it would snap shut mid-choice
     if (box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
 
     box.innerHTML = `
-      <div class="zone-unit-header">Unit D</div>
-      <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
       <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond${wifiBadge(filter?.online, filter?.rssi, filter?.ap)}</div>
       ${filter ? pondDiagram() : ''}
       ${(filter?.filters || []).map(filterCard).join('')}
@@ -460,6 +599,12 @@ function pondDiagram() {
     const sensor     = (y, wet) => `<circle class="pd-sensor ${!tank ? 'unknown' : wet ? 'wet' : ''}" cx="700" cy="${y}" r="5"/>`;
     const waterTop   = !tank ? 215 : tank.top_wet ? 180 : tank.refill_wet ? 205 : 235;
 
+    // Pond level from Unit D, beside the pond
+    const lvl      = pondOffsetText(pond?.online ? pond.offset_in : null);
+    const pondText = lvl ? `
+          <text class="pd-label ${lvl.cls}" x="182" y="56">${lvl.arrow} ${lvl.amount}</text>
+          <text class="pd-note" x="182" y="72">${lvl.words}</text>` : '';
+
     let caption;
     if (!online) {
         caption = 'Unit E is offline, so the valve positions are unknown.';
@@ -501,7 +646,7 @@ function pondDiagram() {
           ${pipe('M580 262 H505', online && tankDrainOpen)}
 
           <path class="pd-water" d="M20 30 H170 V70 Q170 90 150 90 H40 Q20 90 20 70 Z"/>
-          <text class="pd-label" x="95" y="64" text-anchor="middle">Pond</text>
+          <text class="pd-label" x="95" y="64" text-anchor="middle">Pond</text>${pondText}
           <text class="pd-label" x="310" y="24">Spring</text>
           <circle class="pd-tee" cx="300" cy="140" r="5"/>
 
@@ -681,7 +826,7 @@ function renderSchedules() {
 function openScheduleModal() {
     const sel = document.getElementById('schedZone');
     // Irrigation zones only — Unit E flush valves run on their own cycle
-    sel.innerHTML = zones.filter(z => z.id <= 15).map(z => `<option value="${z.id}">Zone ${z.id} — ${escHtml(z.name)}</option>`).join('');
+    sel.innerHTML = zones.map(z => `<option value="${z.id}">Zone ${z.id} — ${escHtml(z.name)}</option>`).join('');
     document.getElementById('scheduleModal').classList.remove('hidden');
 }
 

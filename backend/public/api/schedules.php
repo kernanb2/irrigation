@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
+require_once __DIR__ . '/../../src/ZoneUnit.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -29,8 +30,8 @@ if ($method === 'POST') {
     $skipMoist   = (bool)($body['skip_if_moist'] ?? true);
     $skipThresh  = (int)($body['skip_threshold'] ?? 60);
 
-    // Irrigation zones only — 16+ are Unit E flush valves, run by their own cycle
-    if ($zoneId < 1 || $zoneId > 15 || !$cron || $duration < 1 || $duration > MAX_ZONE_DURATION_SEC) {
+    // Irrigation zones only (Units A–D) — Unit E's valves are run by their own cycles
+    if (!ZoneUnit::isIrrigationZone($zoneId) || !$cron || $duration < 1 || $duration > MAX_ZONE_DURATION_SEC) {
         
         echo json_encode(['error' => 'Invalid schedule parameters']);
         exit;

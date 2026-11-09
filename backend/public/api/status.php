@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/ZoneUnit.php';
 require_once __DIR__ . '/../../src/WifiAp.php';
+require_once __DIR__ . '/../../src/PondLevel.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -24,7 +25,7 @@ $zones = $db->query("
     FROM zones z
     JOIN units u ON u.id = z.unit_id
     LEFT JOIN sensor_calibration sc ON sc.zone_id = z.id
-    WHERE z.id <= 15
+    WHERE z.unit_id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
     ORDER BY z.id
 ")->fetchAll();
 
@@ -67,5 +68,6 @@ echo json_encode([
     'units'     => $units,
     'temps'     => $temps,
     'schedules' => $schedules,
+    'pond'      => PondLevel::summary(),
     'ts'        => time(),
 ]);

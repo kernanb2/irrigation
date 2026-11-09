@@ -225,6 +225,32 @@ main {
   .zone-actions { margin-top: 0; align-self: end; }
 }
 
+/* ── Unit D pond level ─────────────────────────────────────────────────────── */
+.pond-card {
+  grid-column: 1 / -1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.pond-card .zone-header { gap: 0.75rem; flex-wrap: wrap; }
+.pond-card #pondNormalBtn { flex: 0 0 auto; padding: 0.4rem 0.75rem; }
+.pond-now    { margin: 0.25rem 0 0.75rem; }
+.pond-now .zone-sensors { margin-bottom: 0; display: inline; }
+.pond-offset { font-size: 1.1rem; font-weight: 600; margin-right: 0.5rem; }
+.level-up   { color: var(--blue);   fill: var(--blue); }
+.level-down { color: var(--orange); fill: var(--orange); }
+.level-ok   { color: var(--green);  fill: var(--green); }
+.pond-range { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.pond-range button {
+  background: transparent; color: var(--muted); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 0.75rem; cursor: pointer;
+}
+.pond-range button.active { background: var(--card2); color: var(--text); border-color: var(--blue); }
+.pond-chart { position: relative; height: 240px; }
+.pond-chart #pondChartEmpty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
 /* ── Unit E plumbing diagram ──────────────────────────────────────────────── */
 .pond-diagram {
   grid-column: 1 / -1;
@@ -256,6 +282,9 @@ main {
 .pd-sensor.unknown { stroke: var(--muted); }
 .pd-label  { fill: var(--text); font-size: 12px; font-weight: 600; }
 .pd-note   { fill: var(--muted); font-size: 11px; }
+.pd-label.level-up { fill: var(--blue); }
+.pd-label.level-down { fill: var(--orange); }
+.pd-label.level-ok { fill: var(--green); }
 
 .pd-caption { font-size: 0.85rem; }
 .pd-legend {
