@@ -3,6 +3,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/ZoneUnit.php';
+require_once __DIR__ . '/../../src/WifiAp.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -30,10 +31,16 @@ $zones = $db->query("
 // Zone units are online if they checked in recently (they check in every 5 s)
 $units = $db->query("
     SELECT u.id, u.last_seen, TIMESTAMPDIFF(SECOND, u.last_seen, NOW()) < " . ZoneUnit::ONLINE_SEC . " AS online,
-           JSON_EXTRACT(s.report, '$.rssi') AS rssi
+           JSON_EXTRACT(s.report, '$.rssi') AS rssi, JSON_UNQUOTE(JSON_EXTRACT(s.report, '$.bssid')) AS bssid
     FROM units u LEFT JOIN unit_status s ON s.unit_id = u.id
     WHERE u.id IN (" . implode(',', ZoneUnit::UNIT_IDS) . ")
 ")->fetchAll();
+// Show the access point by name (a unit not yet on the new firmware has no bssid)
+foreach ($units as &$unit) {
+    $unit['ap'] = WifiAp::name($unit['bssid'] === 'null' ? null : $unit['bssid']);
+    unset($unit['bssid']);
+}
+unset($unit);
 
 $temps = $db->query("
     SELECT t.unit_id, t.sensor_addr, t.temp_c, t.recorded_at

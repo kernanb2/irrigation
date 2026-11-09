@@ -89,7 +89,8 @@ class ZoneUnit {
         }
 
         $report = json_encode(['valves' => $valves, 'uptime_s' => (int)($body['uptime_s'] ?? 0),
-                              'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null]);
+                              'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null,
+                              'bssid' => isset($body['bssid']) ? substr((string)$body['bssid'], 0, 17) : null]);
         $db->prepare("
             INSERT INTO unit_status (unit_id, report) VALUES (?, ?)
             ON DUPLICATE KEY UPDATE report = VALUES(report)

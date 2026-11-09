@@ -108,7 +108,8 @@ if (is_array($body['tank_drain'] ?? null)) {
 $db->prepare("
     INSERT INTO settings (key_name, value) VALUES ('filter_last_report', ?)
     ON DUPLICATE KEY UPDATE value = VALUES(value)
-")->execute([json_encode(['filters' => $filters, 'drain' => $drain, 'fill' => $fill, 'tank_drain' => $tankDrain, 'uptime_s' => (int)($body['uptime_s'] ?? 0), 'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null])]);
+")->execute([json_encode(['filters' => $filters, 'drain' => $drain, 'fill' => $fill, 'tank_drain' => $tankDrain, 'uptime_s' => (int)($body['uptime_s'] ?? 0), 'rssi' => isset($body['rssi']) ? (int)$body['rssi'] : null,
+    'bssid' => isset($body['bssid']) ? substr((string)$body['bssid'], 0, 17) : null])]);
 
 // A logging failure must never block the reply — the unit needs it to get Start/Stop
 if (!empty($body['events']) && is_array($body['events'])) {

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../src/FilterFlush.php';
 require_once __DIR__ . '/../../src/PondDrain.php';
 require_once __DIR__ . '/../../src/PondFill.php';
 require_once __DIR__ . '/../../src/TankDrain.php';
+require_once __DIR__ . '/../../src/WifiAp.php';
 
 Auth::require();
 header('Content-Type: application/json');
@@ -73,4 +74,5 @@ echo json_encode([
     'online'    => $u && $u['seen_ago'] !== null && (int)$u['seen_ago'] < FilterFlush::ONLINE_SEC,
     'last_seen' => $u['last_seen'] ?? null,
     'rssi'      => $reportData['rssi'] ?? null,
+    'ap'        => WifiAp::name($reportData['bssid'] ?? null),
 ]);

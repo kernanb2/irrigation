@@ -93,7 +93,7 @@ function renderZones() {
     const unitNames = { 1: 'Unit A — Zones 1–5', 2: 'Unit B — Zones 6–10', 3: 'Unit C — Zones 11–15' };
 
     [1, 2, 3].forEach(uid => {
-        html += `<div class="zone-unit-header">${unitNames[uid]}${wifiBadge(units[uid]?.online == 1, units[uid]?.rssi)}</div>`;
+        html += `<div class="zone-unit-header">${unitNames[uid]}${wifiBadge(units[uid]?.online == 1, units[uid]?.rssi, units[uid]?.ap)}</div>`;
         byUnit[uid].forEach(z => { html += zoneCard(z); });
     });
 
@@ -152,7 +152,7 @@ function renderExtraUnits() {
     box.innerHTML = `
       <div class="zone-unit-header">Unit D</div>
       <div class="zone-card"><div class="zone-sensors">Not set up yet</div></div>
-      <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond${wifiBadge(filter?.online, filter?.rssi)}</div>
+      <div class="zone-unit-header">Unit E — Pre-filter Flush &amp; Pond${wifiBadge(filter?.online, filter?.rssi, filter?.ap)}</div>
       ${filter ? pondDiagram() : ''}
       ${(filter?.filters || []).map(filterCard).join('')}
       ${filter?.drain ? drainCard(filter.drain) : ''}
@@ -161,11 +161,11 @@ function renderExtraUnits() {
 }
 
 // WiFi signal from a unit's last report. Unit E's check-ins started failing at -83 dBm.
-function wifiBadge(online, rssi) {
+function wifiBadge(online, rssi, ap) {
     if (!online || rssi == null || rssi === 'null') return '';
     rssi = Number(rssi);
     const [label, cls] = rssi >= -67 ? ['good', 'good'] : rssi >= -75 ? ['fair', 'fair'] : ['weak', 'weak'];
-    return `<span class="wifi-badge ${cls}" title="WiFi signal strength">WiFi ${rssi} dBm · ${label}</span>`;
+    return `<span class="wifi-badge ${cls}" title="WiFi signal strength">WiFi ${rssi} dBm · ${label}${ap ? ` · ${escHtml(ap)}` : ''}</span>`;
 }
 
 function drainCard(d) {
