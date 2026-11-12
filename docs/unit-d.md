@@ -2,6 +2,10 @@
 
 Unit D is a zone unit like Units A–C, with four zones instead of five, plus an ultrasonic sensor that measures the pond level. It runs the same firmware as Units A–C (`firmware/irrigation_controller/`), built with `SECRET_UNIT_ID 4`.
 
+The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wiring.html](unit-d-wiring.html) (open it in a browser).
+
+![Unit D wiring](unit-d-wiring.svg)
+
 ## Parts
 
 | Part | Use |
