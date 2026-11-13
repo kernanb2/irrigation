@@ -35,7 +35,7 @@ All grounds go to one common ground, as on the other units.
 
 ## Sensors
 
-**SEN0308 moisture sensors.** Power them from **3.3V**, so their output can never go above what the ESP32's inputs can take. They read high when dry and low when wet, like the A–C sensors. Zones 21–24 start on the same calibration as A–C (3300 dry, 1300 wet); check each one in air and in a glass of water and update `sensor_calibration` if they differ.
+**SEN0308 moisture sensors.** Power them from **3.3V**, so their output can never go above what the ESP32's inputs can take. They read high when dry and low when wet, like the A–C sensors. On 3.3V a SEN0308 gives about 2.2V in air (2600) and about 0V in water (0), so zones 21–24 are calibrated to 2600 dry, 0 wet (measured on Zone 21's sensor). Check each one in air and in a glass of water and update `sensor_calibration` if they differ. A sensor that loses power also reads 0, which shows as 100% wet, so if a zone suddenly reads 100% in dry weather, check its V wire.
 
 **Ultrasonic sensor.** UART at 9600 baud. Each reading is 4 bytes: `0xFF`, high byte, low byte, checksum; the distance is high × 256 + low, in mm. The firmware takes the median of the last 15 readings to ride out ripples. It works with both versions of the sensor: the "auto output" one sends readings on its own, and the "controlled" one is asked for a reading whenever none arrive.
 

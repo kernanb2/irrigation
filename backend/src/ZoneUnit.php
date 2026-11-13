@@ -8,8 +8,10 @@ class ZoneUnit {
     const UNIT_IDS   = [1, 2, 3, 4];
     const ZONE_COUNT = [1 => 5, 2 => 5, 3 => 5, 4 => 4];
     const ONLINE_SEC = 30;   // boards check in every 5 s
-    // Capacitive sensors read ~1300 (wet) to ~3300 (dry). An unconnected input reads
+    // The A–C sensors read ~1300 (wet) to ~3300 (dry). An unconnected input reads
     // near 0, which would look like soaking wet — store the raw value but no percentage.
+    // Sensors whose wet value is below this (Unit D's SEN0308 reads 0 in water) use their
+    // wet value as the floor instead.
     const MIN_SENSOR_RAW = 1000;
 
     // Longest a valve may be open in one go (settings.max_zone_duration_sec, capped by config)
@@ -182,7 +184,8 @@ class ZoneUnit {
     }
 
     // moisture: raw ADC per local index (0–4095); temp_c from the DS18B20 (-127 = not connected).
-    // Readings below MIN_SENSOR_RAW are kept with moisture_pct NULL ("No sensor data").
+    // Readings below MIN_SENSOR_RAW (or the zone's wet value, if lower) are kept with
+    // moisture_pct NULL ("No sensor data").
     private static function storeSensors(int $unitId, array $s): void {
         $db = Database::get();
 
@@ -199,7 +202,8 @@ class ZoneUnit {
             if (!$z || $z['dry_value'] === null) continue;   // no calibration row = zone has no sensor
 
             $pct = null;
-            if ($raw >= self::MIN_SENSOR_RAW && $z['dry_value'] != $z['wet_value']) {
+            $floor = min(self::MIN_SENSOR_RAW, (int)$z['wet_value']);
+            if ($raw >= $floor && $z['dry_value'] != $z['wet_value']) {
                 $pct = (int)round(($z['dry_value'] - $raw) / ($z['dry_value'] - $z['wet_value']) * 100);
                 $pct = max(0, min(100, $pct));
             }

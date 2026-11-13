@@ -166,7 +166,11 @@ CREATE TABLE sensor_calibration (
 
 -- A zone without a row here has no moisture sensor (zone 1, Creek Source)
 INSERT INTO sensor_calibration (zone_id, dry_value, wet_value)
-SELECT id, 3300, 1300 FROM zones WHERE id BETWEEN 2 AND 15 OR id BETWEEN 21 AND 24;
+SELECT id, 3300, 1300 FROM zones WHERE id BETWEEN 2 AND 15;
+
+-- Unit D's SEN0308 on 3.3V: ~2.2V (2600) in air, ~0V (0) in water
+INSERT INTO sensor_calibration (zone_id, dry_value, wet_value, calibrated_at)
+SELECT id, 2600, 0, NOW() FROM zones WHERE id BETWEEN 21 AND 24;
 
 -- ── System settings ───────────────────────────────────────────────────────────
 CREATE TABLE settings (
