@@ -233,10 +233,14 @@ function drawPondChart(readings, normalMm) {
 
     const css    = getComputedStyle(document.documentElement);
     const color  = n => css.getPropertyValue(n).trim();
+    // The line is the 3-hour running average; the tooltip also shows that half hour's reading
+    const inches = mm => +((normalMm != null ? normalMm - mm : -mm) / 25.4).toFixed(1);
     const points = readings.map(r => ({
         x: new Date(r.at.replace(' ', 'T')).getTime(),
-        y: +((normalMm != null ? normalMm - r.mm : -r.mm) / 25.4).toFixed(1),
+        y: inches(r.avg_mm ?? r.mm),
+        raw: inches(r.mm),
     }));
+    const signed = v => `${v > 0 ? '+' : ''}${v} in`;
     const yTitle = normalMm != null ? 'Inches above / below normal' : 'Inches below sensor';
     const fmt    = ms => new Date(ms).toLocaleString([], pondDays === 1
         ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric' });
@@ -255,7 +259,8 @@ function drawPondChart(readings, normalMm) {
                 legend: { display: false },
                 tooltip: { callbacks: {
                     title: items => new Date(items[0].parsed.x).toLocaleString(),
-                    label: item => `${item.parsed.y > 0 ? '+' : ''}${item.parsed.y} in`,
+                    label: item => [`3-hour average ${signed(item.parsed.y)}`,
+                                    `Reading ${signed(item.raw.raw)}`],
                 } },
             },
             scales: {

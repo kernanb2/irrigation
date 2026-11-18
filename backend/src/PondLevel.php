@@ -65,13 +65,36 @@ class PondLevel {
         ];
     }
 
-    // Stored readings for the graph, oldest first
+    // Stored readings for the graph, oldest first. Each carries the raw distance and a
+    // running average of the readings in the 3 hours up to it ('avg_mm'): the sensor
+    // wanders about ±0.5 in between readings while a pond this size moves far slower.
+    // Readings from the 3 hours before the range are fetched too, so the first points
+    // in the range get a full average.
+    const AVG_SEC = 3 * 3600;
+
     public static function history(int $days): array {
         $stmt = Database::get()->prepare("
-            SELECT distance_mm, recorded_at FROM pond_level_readings
-            WHERE recorded_at >= NOW() - INTERVAL ? DAY ORDER BY recorded_at
+            SELECT distance_mm, recorded_at, UNIX_TIMESTAMP(recorded_at) AS ts,
+                   recorded_at >= NOW() - INTERVAL ? DAY AS in_range
+            FROM pond_level_readings
+            WHERE recorded_at >= NOW() - INTERVAL ? DAY - INTERVAL " . self::AVG_SEC . " SECOND
+            ORDER BY recorded_at
         ");
-        $stmt->execute([$days]);
-        return array_map(fn($r) => ['mm' => (int)$r['distance_mm'], 'at' => $r['recorded_at']], $stmt->fetchAll());
+        $stmt->execute([$days, $days]);
+        $rows = $stmt->fetchAll();
+
+        $out = []; $start = 0; $sum = 0;
+        foreach ($rows as $i => $r) {
+            $sum += (int)$r['distance_mm'];
+            // Drop readings 3 hours or more older than this one
+            while ($rows[$start]['ts'] <= $r['ts'] - self::AVG_SEC) $sum -= (int)$rows[$start++]['distance_mm'];
+            if (!$r['in_range']) continue;
+            $out[] = [
+                'mm'     => (int)$r['distance_mm'],
+                'avg_mm' => round($sum / ($i - $start + 1), 1),
+                'at'     => $r['recorded_at'],
+            ];
+        }
+        return $out;
     }
 }

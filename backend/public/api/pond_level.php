@@ -1,7 +1,7 @@
 <?php
 // Web UI — Unit D pond level. GET ?days=1|7|30 returns the current level and the
-// 30-minute readings for the graph; POST {"action": "set_normal"} makes the latest
-// reading the pond's normal level.
+// 30-minute readings, each with a 3-hour running average, for the graph;
+// POST {"action": "set_normal"} makes the latest reading the pond's normal level.
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
