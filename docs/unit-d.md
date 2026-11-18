@@ -11,7 +11,7 @@ The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wi
 | Part | Use |
 |---|---|
 | ESP32 dev board | Controller |
-| 4 × DRV8871 | One per zone, drives the valve |
+| Songle 8-relay module (SRD-05VDC-SL-C, active LOW) | Same board as Unit E. Two relays per valve |
 | 4 × Rainbird 9V latching solenoid | Zone valves, same as Units A–C |
 | 4 × DFRobot SEN0308 | Waterproof capacitive soil moisture sensor, one per zone |
 | Taidacent waterproof ultrasonic sensor (UART) | Pond level, mounted above the water looking down |
@@ -21,10 +21,10 @@ The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wi
 
 | GPIO | Connects to |
 |---|---|
-| 4 / 5 | Zone 21 DRV8871 IN1 / IN2 |
-| 12 / 13 | Zone 22 DRV8871 IN1 / IN2 (12 is a strapping pin; the DRV8871 keeps it LOW at boot) |
-| 14 / 15 | Zone 23 DRV8871 IN1 / IN2 |
-| 16 / 17 | Zone 24 DRV8871 IN1 / IN2 |
+| 4 / 5 | Zone 21 open / close relay (K1 / K2) |
+| 25 / 13 | Zone 22 open / close relay (K3 / K4). Not GPIO 12: the module holds its inputs HIGH, and GPIO 12 HIGH at power-up stops the ESP32 booting |
+| 14 / 15 | Zone 23 open / close relay (K5 / K6) |
+| 16 / 17 | Zone 24 open / close relay (K7 / K8) |
 | 32, 33, 34, 35 | SEN0308 signal for zones 21, 22, 23, 24 |
 | 26 | Ultrasonic sensor pin 4, **white** (its TX) |
 | 27 | Ultrasonic sensor pin 3, **yellow** (its RX) |
@@ -32,6 +32,10 @@ The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wi
 | 2 | On-board LED: solid = online, blinking = no WiFi |
 
 All grounds go to one common ground, as on the other units.
+
+## Valve relays
+
+Unit D drives its valves from the same Songle 8-relay module as Unit E, not DRV8871 boards. Two DRV8871s were damaged while being soldered, and the relay module needs no soldering. Each valve uses two relays: each relay's COM takes one valve wire, NO goes to 9V and NC to GND. At rest both wires sit on GND. A 0.1 s pulse on the open relay opens the valve, and one on the close relay closes it. If both relays ever switched together, both wires would be at 9V and no current would flow, so the 9V can't be shorted. The module is powered as on Unit E: jumper off, JD-VCC from 5V, VCC from 3.3V. Wiring details are in [unit-d-wiring.html](unit-d-wiring.html).
 
 ## Sensors
 
@@ -60,4 +64,4 @@ All grounds go to one common ground, as on the other units.
 1. ESP32 alone: flash, check it comes online. The Unit D header on the dashboard shows its WiFi signal.
 2. Ultrasonic sensor: the Pond Level card should show "Water is X in below the sensor". Hold a board at a measured distance below it to check the reading.
 3. Moisture sensors one at a time: each zone card shows a moisture %.
-4. DRV8871s and valves one zone at a time, as on Unit A: Open, then Close, from the dashboard.
+4. Relay module, then the valves one zone at a time: Open, then Close, from the dashboard.

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="940" viewBox="0 0 1300 940" role="img" aria-label="Unit D wiring: 12V supply through F1 to red blocks, two LM2596 converters making the 9V valve rail on grey blocks and 5V on black for the ESP32, four DRV8871 boards driving the zone valves, four SEN0308 moisture sensors and the ultrasonic pond sensor through blue and grey signal blocks, sensor power on yellow 3.3V blocks and all grounds on green.">
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="940" viewBox="0 0 1300 940" role="img" aria-label="Unit D wiring: 12V supply through F1 to red blocks, two LM2596 converters making the 9V valve rail on grey blocks and 5V on black for the ESP32 and relay coils, a Songle 8-relay module driving the four zone valves with two relays per valve, four SEN0308 moisture sensors and the ultrasonic pond sensor through blue and grey signal blocks, sensor power on yellow 3.3V blocks and all grounds on green.">
 <style>
 text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px; fill: #1d2420; }
 .m { fill: #5d6a63; font-size: 11.5px; }
@@ -28,7 +28,6 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 .tg-green { fill: #2e8b57; } .tg-yellow { fill: #e8c547; } .tg-grey { fill: #a4aaa7; }
 .tt-yellow, .tt-grey { fill: #1d2420; }
 .d-w9 { fill: #7b6a58; }</style>
-<rect width="1300" height="940" fill="#ffffff"/>
 <rect class="box" x="30" y="30" width="150" height="74" rx="6"/>
 <text x="44" y="56" class="h">12V supply</text>
 <text x="44" y="74" class="m">battery / solar</text>
@@ -59,7 +58,7 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="640" y="76" class="bl bl-grey" text-anchor="middle">Gy3</text>
 <path class="w w9" d="M657 72 H690"/>
 <text x="696" y="68" class="m">9V valve rail →</text>
-<text x="696" y="83" class="m">each DRV8871 VM</text>
+<text x="696" y="83" class="m">relay NO bus</text>
 <text x="540" y="48" class="m">GREY Gy1–Gy3 bridged · 9V</text>
 <path class="w wg" d="M440 104 V118"/>
 <rect class="tag tg-green" x="418" y="118" width="44" height="18" rx="9"/>
@@ -71,11 +70,15 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <path class="w w5" d="M500 154 H560"/>
 <rect class="blk b-black" x="543" y="143" width="34" height="22" rx="3"/>
 <text x="560" y="158" class="bl bl-black" text-anchor="middle">Bk1</text>
-<text x="540" y="132" class="m">BLACK Bk1 · 5V</text>
+<rect class="blk b-black" x="583" y="143" width="34" height="22" rx="3"/>
+<text x="600" y="158" class="bl bl-black" text-anchor="middle">Bk2</text>
+<path class="w w5" d="M617 154 H650"/>
+<text x="656" y="150" class="m">Bk2 → relay JD-VCC</text>
+<text x="540" y="132" class="m">BLACK Bk1–Bk2 bridged · 5V</text>
 <path class="w wg" d="M440 186 V198"/>
 <rect class="tag tg-green" x="418" y="198" width="44" height="18" rx="9"/>
 <text x="440" y="211" class="gt tt-green" text-anchor="middle">Gn2</text>
-<path class="w w5" d="M577 154 H600 V224 H230"/>
+<path class="w w5" d="M560 165 V224 H230"/>
 <rect class="panelbox" x="790" y="20" width="480" height="222" rx="6"/>
 <text x="806" y="42" class="h">DIN rail · 5 blocks of each colour</text>
 <rect class="blk b-red" x="805" y="55" width="34" height="22" rx="3"/>
@@ -105,6 +108,7 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="1010" y="95" class="m">9V · Gy4–5 are signals</text>
 <rect class="blk b-black" x="805" y="105" width="34" height="22" rx="3"/>
 <text x="822" y="120" class="bl bl-black" text-anchor="middle">Bk1</text>
+<path class="w bridge" d="M839 116 H843"/>
 <rect class="blk b-black" x="843" y="105" width="34" height="22" rx="3"/>
 <text x="860" y="120" class="bl bl-black" text-anchor="middle">Bk2</text>
 <rect class="blk b-black" x="881" y="105" width="34" height="22" rx="3"/>
@@ -125,9 +129,10 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <path class="w bridge" d="M915 141 H919"/>
 <rect class="blk b-yellow" x="919" y="130" width="34" height="22" rx="3"/>
 <text x="936" y="145" class="bl bl-yellow" text-anchor="middle">Y4</text>
+<path class="w bridge" d="M953 141 H957"/>
 <rect class="blk b-yellow" x="957" y="130" width="34" height="22" rx="3"/>
 <text x="974" y="145" class="bl bl-yellow" text-anchor="middle">Y5</text>
-<text x="1010" y="145" class="m">3.3V sensor power</text>
+<text x="1010" y="145" class="m">3.3V sensor + relay power</text>
 <rect class="blk b-green" x="805" y="155" width="34" height="22" rx="3"/>
 <text x="822" y="170" class="bl bl-green" text-anchor="middle">Gn1</text>
 <path class="w bridge" d="M839 166 H843"/>
@@ -155,7 +160,7 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="974" y="195" class="bl bl-blue" text-anchor="middle">Bu5</text>
 <text x="1010" y="195" class="m">sensor signals, not bridged</text>
 <text x="806" y="230" class="m">— = bridged together</text>
-<rect class="box" x="30" y="200" width="200" height="700" rx="6"/>
+<rect class="box" x="30" y="200" width="200" height="718" rx="6"/>
 <text x="44" y="250" class="h">ESP32</text>
 <text x="44" y="268" class="m">Unit D</text>
 <text x="44" y="286" class="m">SECRET_UNIT_ID 4</text>
@@ -173,18 +178,18 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="222" y="360" class="pin" text-anchor="end">GPIO 5</text>
 <path class="w ws" d="M230 356 H330"/>
 <rect class="relay" x="330" y="300" width="150" height="82" rx="6"/>
-<text x="405" y="320" class="h" text-anchor="middle">DRV8871</text>
-<text x="405" y="376" class="m" text-anchor="middle">100µF VM–GND</text>
+<text x="405" y="316" class="h" text-anchor="middle">Relays K1 + K2</text>
+<text x="405" y="376" class="m" text-anchor="middle">NO → 9V · NC → GND</text>
 <text x="338" y="334" class="pin">IN1</text>
 <text x="338" y="360" class="pin">IN2</text>
-<text x="472" y="334" class="pin" text-anchor="end">OUT1</text>
-<text x="472" y="360" class="pin" text-anchor="end">OUT2</text>
+<text x="472" y="334" class="pin" text-anchor="end">K1 COM</text>
+<text x="472" y="360" class="pin" text-anchor="end">K2 COM</text>
 <path class="w w9" d="M360 300 V292"/>
 <rect class="tag tg-grey" x="338" y="274" width="44" height="18" rx="9"/>
-<text x="360" y="287" class="gt tt-grey" text-anchor="middle">Gy 9V</text>
+<text x="360" y="287" class="gt tt-grey" text-anchor="middle">NO 9V</text>
 <path class="w wg" d="M450 300 V292"/>
 <rect class="tag tg-green" x="428" y="274" width="44" height="18" rx="9"/>
-<text x="450" y="287" class="gt tt-green" text-anchor="middle">Gn3</text>
+<text x="450" y="287" class="gt tt-green" text-anchor="middle">NC Gn3</text>
 <path class="w wb" d="M480 330 H540"/>
 <path class="w wb" d="M480 356 H540"/>
 <rect class="box" x="540" y="306" width="140" height="70" rx="6"/>
@@ -208,23 +213,23 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="986" y="352" class="pl">G</text>
 <rect class="tag tg-green" x="1012" y="347" width="44" height="18" rx="9"/>
 <text x="1034" y="360" class="gt tt-green" text-anchor="middle">Gn5</text>
-<text x="222" y="446" class="pin" text-anchor="end">GPIO 12</text>
+<text x="222" y="446" class="pin" text-anchor="end">GPIO 25</text>
 <path class="w ws" d="M230 442 H330"/>
 <text x="222" y="472" class="pin" text-anchor="end">GPIO 13</text>
 <path class="w ws" d="M230 468 H330"/>
 <rect class="relay" x="330" y="412" width="150" height="82" rx="6"/>
-<text x="405" y="432" class="h" text-anchor="middle">DRV8871</text>
-<text x="405" y="488" class="m" text-anchor="middle">100µF VM–GND</text>
-<text x="338" y="446" class="pin">IN1</text>
-<text x="338" y="472" class="pin">IN2</text>
-<text x="472" y="446" class="pin" text-anchor="end">OUT1</text>
-<text x="472" y="472" class="pin" text-anchor="end">OUT2</text>
+<text x="405" y="428" class="h" text-anchor="middle">Relays K3 + K4</text>
+<text x="405" y="488" class="m" text-anchor="middle">NO → 9V · NC → GND</text>
+<text x="338" y="446" class="pin">IN3</text>
+<text x="338" y="472" class="pin">IN4</text>
+<text x="472" y="446" class="pin" text-anchor="end">K3 COM</text>
+<text x="472" y="472" class="pin" text-anchor="end">K4 COM</text>
 <path class="w w9" d="M360 412 V404"/>
 <rect class="tag tg-grey" x="338" y="386" width="44" height="18" rx="9"/>
-<text x="360" y="399" class="gt tt-grey" text-anchor="middle">Gy 9V</text>
+<text x="360" y="399" class="gt tt-grey" text-anchor="middle">NO 9V</text>
 <path class="w wg" d="M450 412 V404"/>
 <rect class="tag tg-green" x="428" y="386" width="44" height="18" rx="9"/>
-<text x="450" y="399" class="gt tt-green" text-anchor="middle">Gn3</text>
+<text x="450" y="399" class="gt tt-green" text-anchor="middle">NC Gn3</text>
 <path class="w wb" d="M480 442 H540"/>
 <path class="w wb" d="M480 468 H540"/>
 <rect class="box" x="540" y="418" width="140" height="70" rx="6"/>
@@ -253,18 +258,18 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="222" y="584" class="pin" text-anchor="end">GPIO 15</text>
 <path class="w ws" d="M230 580 H330"/>
 <rect class="relay" x="330" y="524" width="150" height="82" rx="6"/>
-<text x="405" y="544" class="h" text-anchor="middle">DRV8871</text>
-<text x="405" y="600" class="m" text-anchor="middle">100µF VM–GND</text>
-<text x="338" y="558" class="pin">IN1</text>
-<text x="338" y="584" class="pin">IN2</text>
-<text x="472" y="558" class="pin" text-anchor="end">OUT1</text>
-<text x="472" y="584" class="pin" text-anchor="end">OUT2</text>
+<text x="405" y="540" class="h" text-anchor="middle">Relays K5 + K6</text>
+<text x="405" y="600" class="m" text-anchor="middle">NO → 9V · NC → GND</text>
+<text x="338" y="558" class="pin">IN5</text>
+<text x="338" y="584" class="pin">IN6</text>
+<text x="472" y="558" class="pin" text-anchor="end">K5 COM</text>
+<text x="472" y="584" class="pin" text-anchor="end">K6 COM</text>
 <path class="w w9" d="M360 524 V516"/>
 <rect class="tag tg-grey" x="338" y="498" width="44" height="18" rx="9"/>
-<text x="360" y="511" class="gt tt-grey" text-anchor="middle">Gy 9V</text>
+<text x="360" y="511" class="gt tt-grey" text-anchor="middle">NO 9V</text>
 <path class="w wg" d="M450 524 V516"/>
 <rect class="tag tg-green" x="428" y="498" width="44" height="18" rx="9"/>
-<text x="450" y="511" class="gt tt-green" text-anchor="middle">Gn3</text>
+<text x="450" y="511" class="gt tt-green" text-anchor="middle">NC Gn3</text>
 <path class="w wb" d="M480 554 H540"/>
 <path class="w wb" d="M480 580 H540"/>
 <rect class="box" x="540" y="530" width="140" height="70" rx="6"/>
@@ -293,18 +298,18 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="222" y="696" class="pin" text-anchor="end">GPIO 17</text>
 <path class="w ws" d="M230 692 H330"/>
 <rect class="relay" x="330" y="636" width="150" height="82" rx="6"/>
-<text x="405" y="656" class="h" text-anchor="middle">DRV8871</text>
-<text x="405" y="712" class="m" text-anchor="middle">100µF VM–GND</text>
-<text x="338" y="670" class="pin">IN1</text>
-<text x="338" y="696" class="pin">IN2</text>
-<text x="472" y="670" class="pin" text-anchor="end">OUT1</text>
-<text x="472" y="696" class="pin" text-anchor="end">OUT2</text>
+<text x="405" y="652" class="h" text-anchor="middle">Relays K7 + K8</text>
+<text x="405" y="712" class="m" text-anchor="middle">NO → 9V · NC → GND</text>
+<text x="338" y="670" class="pin">IN7</text>
+<text x="338" y="696" class="pin">IN8</text>
+<text x="472" y="670" class="pin" text-anchor="end">K7 COM</text>
+<text x="472" y="696" class="pin" text-anchor="end">K8 COM</text>
 <path class="w w9" d="M360 636 V628"/>
 <rect class="tag tg-grey" x="338" y="610" width="44" height="18" rx="9"/>
-<text x="360" y="623" class="gt tt-grey" text-anchor="middle">Gy 9V</text>
+<text x="360" y="623" class="gt tt-grey" text-anchor="middle">NO 9V</text>
 <path class="w wg" d="M450 636 V628"/>
 <rect class="tag tg-green" x="428" y="610" width="44" height="18" rx="9"/>
-<text x="450" y="623" class="gt tt-green" text-anchor="middle">Gn3</text>
+<text x="450" y="623" class="gt tt-green" text-anchor="middle">NC Gn3</text>
 <path class="w wb" d="M480 666 H540"/>
 <path class="w wb" d="M480 692 H540"/>
 <rect class="box" x="540" y="642" width="140" height="70" rx="6"/>
@@ -328,70 +333,73 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="986" y="688" class="pl">G</text>
 <rect class="tag tg-green" x="1012" y="683" width="44" height="18" rx="9"/>
 <text x="1034" y="696" class="gt tt-green" text-anchor="middle">Gn5</text>
-<text x="222" y="764" class="pin" text-anchor="end">GPIO 32</text>
-<path class="w ws" d="M230 760 H252"/>
-<rect class="blk b-blue" x="253" y="749" width="34" height="22" rx="3"/>
-<text x="270" y="764" class="bl bl-blue" text-anchor="middle">Bu1</text>
-<text x="222" y="784" class="pin" text-anchor="end">GPIO 33</text>
-<path class="w ws" d="M230 780 H252"/>
-<rect class="blk b-blue" x="253" y="769" width="34" height="22" rx="3"/>
-<text x="270" y="784" class="bl bl-blue" text-anchor="middle">Bu2</text>
-<text x="222" y="804" class="pin" text-anchor="end">GPIO 34</text>
-<path class="w ws" d="M230 800 H252"/>
-<rect class="blk b-blue" x="253" y="789" width="34" height="22" rx="3"/>
-<text x="270" y="804" class="bl bl-blue" text-anchor="middle">Bu3</text>
-<text x="222" y="824" class="pin" text-anchor="end">GPIO 35</text>
+<text x="330" y="734" class="pl">Songle 8-relay module · active LOW</text>
+<text x="330" y="748" class="m">jumper off · JD-VCC → Bk2 · VCC → Y5</text>
+<text x="330" y="762" class="m">both GNDs → Gn3 · 100µF across NO–NC bus</text>
+<text x="222" y="780" class="pin" text-anchor="end">GPIO 32</text>
+<path class="w ws" d="M230 776 H252"/>
+<rect class="blk b-blue" x="253" y="765" width="34" height="22" rx="3"/>
+<text x="270" y="780" class="bl bl-blue" text-anchor="middle">Bu1</text>
+<text x="222" y="802" class="pin" text-anchor="end">GPIO 33</text>
+<path class="w ws" d="M230 798 H252"/>
+<rect class="blk b-blue" x="253" y="787" width="34" height="22" rx="3"/>
+<text x="270" y="802" class="bl bl-blue" text-anchor="middle">Bu2</text>
+<text x="222" y="824" class="pin" text-anchor="end">GPIO 34</text>
 <path class="w ws" d="M230 820 H252"/>
 <rect class="blk b-blue" x="253" y="809" width="34" height="22" rx="3"/>
-<text x="270" y="824" class="bl bl-blue" text-anchor="middle">Bu4</text>
-<text x="222" y="844" class="pin" text-anchor="end">GPIO 26</text>
-<path class="w ws" d="M230 840 H252"/>
-<rect class="blk b-blue" x="253" y="829" width="34" height="22" rx="3"/>
-<text x="270" y="844" class="bl bl-blue" text-anchor="middle">Bu5</text>
-<text x="222" y="864" class="pin" text-anchor="end">GPIO 27</text>
-<path class="w ws" d="M230 860 H252"/>
-<rect class="blk b-grey" x="253" y="849" width="34" height="22" rx="3"/>
-<text x="270" y="864" class="bl bl-grey" text-anchor="middle">Gy4</text>
-<text x="222" y="884" class="pin" text-anchor="end">GPIO 21</text>
-<path class="w ws" d="M230 880 H252"/>
-<rect class="blk b-grey" x="253" y="869" width="34" height="22" rx="3"/>
-<text x="270" y="884" class="bl bl-grey" text-anchor="middle">Gy5</text>
-<rect class="box" x="560" y="756" width="190" height="104" rx="6"/>
-<text x="655" y="778" class="h" text-anchor="middle">Ultrasonic sensor</text>
-<text x="655" y="796" class="m" text-anchor="middle">Taidacent UART · pond</text>
-<text x="655" y="812" class="m" text-anchor="middle">3.3–5V, run on 3.3V</text>
-<path class="w w33" d="M560 828 H520"/>
-<text x="566" y="832" class="pl">1 red</text>
-<rect class="tag tg-yellow" x="476" y="819" width="44" height="18" rx="9"/>
-<text x="498" y="832" class="gt tt-yellow" text-anchor="middle">Y1</text>
-<path class="w wg" d="M560 844 H520"/>
-<text x="566" y="848" class="pl">2 black</text>
-<rect class="tag tg-green" x="476" y="835" width="44" height="18" rx="9"/>
-<text x="498" y="848" class="gt tt-green" text-anchor="middle">Gn4</text>
-<path class="w ws" d="M750 828 H790"/>
-<text x="744" y="832" class="pl" text-anchor="end">3 yellow (RX)</text>
-<rect class="blk b-grey" x="790" y="817" width="34" height="22" rx="3"/>
-<text x="807" y="832" class="bl bl-grey" text-anchor="middle">Gy4</text>
-<text x="828" y="832" class="pin">← GPIO 27</text>
-<path class="w ws" d="M750 844 H770 V856 H790"/>
-<text x="744" y="848" class="pl" text-anchor="end">4 white (TX)</text>
-<rect class="blk b-blue" x="790" y="845" width="34" height="22" rx="3"/>
-<text x="807" y="860" class="bl bl-blue" text-anchor="middle">Bu5</text>
-<text x="828" y="860" class="pin">→ GPIO 26</text>
-<rect class="box" x="920" y="756" width="200" height="104" rx="6"/>
-<text x="1020" y="778" class="h" text-anchor="middle">DS18B20</text>
-<text x="1020" y="796" class="m" text-anchor="middle">temperature · optional</text>
-<path class="w w33" d="M1120 812 H1150"/>
-<rect class="tag tg-yellow" x="1152" y="803" width="44" height="18" rx="9"/>
-<text x="1174" y="816" class="gt tt-yellow" text-anchor="middle">Y4</text>
-<text x="1114" y="808" class="pl" text-anchor="end">VCC</text>
-<path class="w wg" d="M1120 830 H1150"/>
-<rect class="tag tg-green" x="1152" y="821" width="44" height="18" rx="9"/>
-<text x="1174" y="834" class="gt tt-green" text-anchor="middle">Gn4</text>
-<text x="1114" y="826" class="pl" text-anchor="end">GND</text>
-<path class="w ws" d="M1120 848 H1150"/>
-<rect class="blk b-grey" x="1150" y="837" width="34" height="22" rx="3"/>
-<text x="1167" y="852" class="bl bl-grey" text-anchor="middle">Gy5</text>
-<text x="1114" y="844" class="pl" text-anchor="end">DATA</text>
-<text x="928" y="852" class="m">4.7k: Gy5 → Y4</text>
+<text x="270" y="824" class="bl bl-blue" text-anchor="middle">Bu3</text>
+<text x="222" y="846" class="pin" text-anchor="end">GPIO 35</text>
+<path class="w ws" d="M230 842 H252"/>
+<rect class="blk b-blue" x="253" y="831" width="34" height="22" rx="3"/>
+<text x="270" y="846" class="bl bl-blue" text-anchor="middle">Bu4</text>
+<text x="222" y="868" class="pin" text-anchor="end">GPIO 26</text>
+<path class="w ws" d="M230 864 H252"/>
+<rect class="blk b-blue" x="253" y="853" width="34" height="22" rx="3"/>
+<text x="270" y="868" class="bl bl-blue" text-anchor="middle">Bu5</text>
+<text x="222" y="890" class="pin" text-anchor="end">GPIO 27</text>
+<path class="w ws" d="M230 886 H252"/>
+<rect class="blk b-grey" x="253" y="875" width="34" height="22" rx="3"/>
+<text x="270" y="890" class="bl bl-grey" text-anchor="middle">Gy4</text>
+<text x="222" y="912" class="pin" text-anchor="end">GPIO 21</text>
+<path class="w ws" d="M230 908 H252"/>
+<rect class="blk b-grey" x="253" y="897" width="34" height="22" rx="3"/>
+<text x="270" y="912" class="bl bl-grey" text-anchor="middle">Gy5</text>
+<rect class="box" x="560" y="776" width="190" height="104" rx="6"/>
+<text x="655" y="798" class="h" text-anchor="middle">Ultrasonic sensor</text>
+<text x="655" y="816" class="m" text-anchor="middle">Taidacent UART · pond</text>
+<text x="655" y="832" class="m" text-anchor="middle">3.3–5V, run on 3.3V</text>
+<path class="w w33" d="M560 848 H520"/>
+<text x="566" y="852" class="pl">1 red</text>
+<rect class="tag tg-yellow" x="476" y="839" width="44" height="18" rx="9"/>
+<text x="498" y="852" class="gt tt-yellow" text-anchor="middle">Y1</text>
+<path class="w wg" d="M560 864 H520"/>
+<text x="566" y="868" class="pl">2 black</text>
+<rect class="tag tg-green" x="476" y="855" width="44" height="18" rx="9"/>
+<text x="498" y="868" class="gt tt-green" text-anchor="middle">Gn4</text>
+<path class="w ws" d="M750 848 H790"/>
+<text x="744" y="852" class="pl" text-anchor="end">3 yellow (RX)</text>
+<rect class="blk b-grey" x="790" y="837" width="34" height="22" rx="3"/>
+<text x="807" y="852" class="bl bl-grey" text-anchor="middle">Gy4</text>
+<text x="828" y="852" class="pin">← GPIO 27</text>
+<path class="w ws" d="M750 864 H770 V876 H790"/>
+<text x="744" y="868" class="pl" text-anchor="end">4 white (TX)</text>
+<rect class="blk b-blue" x="790" y="865" width="34" height="22" rx="3"/>
+<text x="807" y="880" class="bl bl-blue" text-anchor="middle">Bu5</text>
+<text x="828" y="880" class="pin">→ GPIO 26</text>
+<rect class="box" x="920" y="776" width="200" height="104" rx="6"/>
+<text x="1020" y="798" class="h" text-anchor="middle">DS18B20</text>
+<text x="1020" y="816" class="m" text-anchor="middle">temperature · optional</text>
+<path class="w w33" d="M1120 832 H1150"/>
+<rect class="tag tg-yellow" x="1152" y="823" width="44" height="18" rx="9"/>
+<text x="1174" y="836" class="gt tt-yellow" text-anchor="middle">Y4</text>
+<text x="1114" y="828" class="pl" text-anchor="end">VCC</text>
+<path class="w wg" d="M1120 850 H1150"/>
+<rect class="tag tg-green" x="1152" y="841" width="44" height="18" rx="9"/>
+<text x="1174" y="854" class="gt tt-green" text-anchor="middle">Gn4</text>
+<text x="1114" y="846" class="pl" text-anchor="end">GND</text>
+<path class="w ws" d="M1120 868 H1150"/>
+<rect class="blk b-grey" x="1150" y="857" width="34" height="22" rx="3"/>
+<text x="1167" y="872" class="bl bl-grey" text-anchor="middle">Gy5</text>
+<text x="1114" y="864" class="pl" text-anchor="end">DATA</text>
+<text x="928" y="872" class="m">4.7k: Gy5 → Y4</text>
 </svg>

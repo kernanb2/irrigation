@@ -81,7 +81,7 @@ INSERT INTO zones (id, unit_id, local_index, name, is_special, notes) VALUES
 (19, 5, 3, 'Pond Fill',              FALSE, '2" valve, relays 5+6 (GPIO 32/13) — normally open'),
 (20, 5, 4, 'Storage Tank Drain',     FALSE, '1" valve, relay 7 (GPIO 21) — normally closed'),
 -- Unit D irrigation zones (4 zones, ids follow on after Unit E's)
-(21, 4, 0, 'Zone 21',           FALSE, NULL),
+(21, 4, 0, 'Pond Fountain',     FALSE, NULL),
 (22, 4, 1, 'Zone 22',           FALSE, NULL),
 (23, 4, 2, 'Zone 23',           FALSE, NULL),
 (24, 4, 3, 'Zone 24',           FALSE, NULL);

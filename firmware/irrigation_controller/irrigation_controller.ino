@@ -31,17 +31,26 @@ const char* API_KEY       = SECRET_API_KEY;
 #define LED_BUILTIN_PIN   2
 #define ONE_WIRE_PIN      21
 
-// DRV8871 per zone: IN1/IN2. GPIO 12 is a strapping pin and must be LOW at boot —
-// the DRV8871's own input pull-downs keep it LOW.
+// IN1 = the open drive, IN2 = the close drive, for each zone.
+// Units A–C: one DRV8871 per zone. GPIO 12 is a strapping pin and must be LOW at
+// boot — the DRV8871's own input pull-downs keep it LOW.
+// Unit D: Songle 8-relay module (active LOW, as on Unit E), two relays per valve.
+// Each relay's COM goes to one valve wire, NO to 9V and NC to GND, so at rest both
+// wires sit on GND, and the IN1 relay or the IN2 relay pulses the valve one way or
+// the other. The module holds its inputs HIGH, so Zone 22 uses GPIO 25, not 12.
 #if UNIT_ID == 4
 #define NUM_ZONES         4
 #define POND_SENSOR       1
-const uint8_t VALVE_IN1[NUM_ZONES]    = {4,  12, 14, 16};
-const uint8_t VALVE_IN2[NUM_ZONES]    = {5,  13, 15, 17};
+#define VALVE_ON          LOW
+#define VALVE_OFF         HIGH
+const uint8_t VALVE_IN1[NUM_ZONES]    = {4,  25, 14, 16};   // relays K1, K3, K5, K7
+const uint8_t VALVE_IN2[NUM_ZONES]    = {5,  13, 15, 17};   // relays K2, K4, K6, K8
 const uint8_t MOISTURE_PIN[NUM_ZONES] = {32, 33, 34, 35};   // DFRobot SEN0308
 #else
 #define NUM_ZONES         5
 #define POND_SENSOR       0
+#define VALVE_ON          HIGH
+#define VALVE_OFF         LOW
 const uint8_t VALVE_IN1[NUM_ZONES]    = {4,  12, 14, 16, 18};
 const uint8_t VALVE_IN2[NUM_ZONES]    = {5,  13, 15, 17, 19};
 const uint8_t MOISTURE_PIN[NUM_ZONES] = {32, 33, 34, 35, 36};
@@ -60,7 +69,7 @@ const uint8_t MOISTURE_PIN[NUM_ZONES] = {32, 33, 34, 35, 36};
 
 // ── Valves ────────────────────────────────────────────────────────────────────
 // Rainbird 9V latching solenoids: a 100 ms pulse switches them, and they stay
-// put without power. Open = IN1 HIGH, close = IN2 HIGH, idle = both LOW.
+// put without power. Open = IN1 on, close = IN2 on, idle = both off.
 #define VALVE_PULSE_MS    100
 #define VALVE_GAP_MS      200   // between pulses, so two solenoids never pulse at once
 
@@ -134,11 +143,11 @@ void saveValveStates() {
 }
 
 void pulse(uint8_t z, bool open) {
-    digitalWrite(VALVE_IN1[z], open ? HIGH : LOW);
-    digitalWrite(VALVE_IN2[z], open ? LOW  : HIGH);
+    digitalWrite(VALVE_IN1[z], open ? VALVE_ON  : VALVE_OFF);
+    digitalWrite(VALVE_IN2[z], open ? VALVE_OFF : VALVE_ON);
     delay(VALVE_PULSE_MS);
-    digitalWrite(VALVE_IN1[z], LOW);
-    digitalWrite(VALVE_IN2[z], LOW);
+    digitalWrite(VALVE_IN1[z], VALVE_OFF);
+    digitalWrite(VALVE_IN2[z], VALVE_OFF);
     delay(VALVE_GAP_MS);
 }
 
@@ -318,13 +327,14 @@ void connectWiFi() {
 
 // ── Setup / loop ──────────────────────────────────────────────────────────────
 void setup() {
-    // Driver inputs LOW first (idle). pinMode before digitalWrite: on ESP32 core 3.x
-    // a digitalWrite before pinMode is ignored.
+    // Valve drives off first (idle). pinMode before digitalWrite: on ESP32 core 3.x
+    // a digitalWrite before pinMode is ignored. On Unit D the pin is LOW (= relay on)
+    // for the few µs between the two calls, far too short for a relay to react.
     for (uint8_t z = 0; z < NUM_ZONES; z++) {
         pinMode(VALVE_IN1[z], OUTPUT);
+        digitalWrite(VALVE_IN1[z], VALVE_OFF);
         pinMode(VALVE_IN2[z], OUTPUT);
-        digitalWrite(VALVE_IN1[z], LOW);
-        digitalWrite(VALVE_IN2[z], LOW);
+        digitalWrite(VALVE_IN2[z], VALVE_OFF);
         pinMode(MOISTURE_PIN[z], INPUT);
     }
     pinMode(LED_BUILTIN_PIN, OUTPUT);
