@@ -102,7 +102,8 @@ CREATE TABLE moisture_readings (
 -- Smaller distance = higher water.
 CREATE TABLE pond_level_readings (
     id          INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
-    distance_mm SMALLINT UNSIGNED NOT NULL,
+    distance_mm SMALLINT UNSIGNED NOT NULL,   -- as the sensor reported it
+    temp_c      DECIMAL(5,2),                 -- DS18B20 at the time (NULL = no sensor)
     recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_time (recorded_at)
 );
@@ -186,6 +187,7 @@ INSERT INTO settings (key_name, value) VALUES
 ('sensor_poll_interval_sec',  '60'),
 ('max_zone_duration_sec',     '3600'),
 ('creek_pond_interlock',      'true'),
+('pond_temp_comp',            '0'),     -- Unit D: correct pond distance for air temperature
 ('filter1_cycle_enabled',     'false'),  -- Unit E pre-filter flush cycles
 ('filter1_flush_sec',         '30'),
 ('filter1_wait_min',          '60'),

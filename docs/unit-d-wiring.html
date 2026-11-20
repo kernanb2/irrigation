@@ -447,7 +447,7 @@ svg .d-w9 { fill: var(--w9); }
 <text x="828" y="880" class="pin">→ GPIO 26</text>
 <rect class="box" x="920" y="776" width="200" height="104" rx="6"/>
 <text x="1020" y="798" class="h" text-anchor="middle">DS18B20</text>
-<text x="1020" y="816" class="m" text-anchor="middle">temperature · optional</text>
+<text x="1020" y="816" class="m" text-anchor="middle">air temp at pond sensor</text>
 <path class="w w33" d="M1120 832 H1150"/>
 <rect class="tag tg-yellow" x="1152" y="823" width="44" height="18" rx="9"/>
 <text x="1174" y="836" class="gt tt-yellow" text-anchor="middle">Y4</text>
@@ -459,8 +459,8 @@ svg .d-w9 { fill: var(--w9); }
 <path class="w ws" d="M1120 868 H1150"/>
 <rect class="blk b-grey" x="1150" y="857" width="34" height="22" rx="3"/>
 <text x="1167" y="872" class="bl bl-grey" text-anchor="middle">Gy5</text>
-<text x="1114" y="864" class="pl" text-anchor="end">DATA</text>
-<text x="928" y="872" class="m">4.7k: Gy5 → Y4</text>
+<text x="1114" y="864" class="pl" text-anchor="end">DAT</text>
+<text x="928" y="872" class="m">4.7k pull-up on its board</text>
 </svg>
 
     <div class="legend">
@@ -491,7 +491,7 @@ svg .d-w9 { fill: var(--w9); }
           <tr><td class="k">Gy1</td><td>LM2596 9V OUT+</td><td>Relay NO bus (+ of the 100µF)</td></tr>
           <tr><td class="k">Gy2–Gy3</td><td>spare</td><td>spare</td></tr>
           <tr><td class="k">Gy4</td><td>GPIO 27 <i>(not bridged)</i></td><td>Ultrasonic pin 3, yellow</td></tr>
-          <tr><td class="k">Gy5</td><td>GPIO 21 + 4.7k <i>(not bridged)</i></td><td>DS18B20 data</td></tr>
+          <tr><td class="k">Gy5</td><td>GPIO 21 <i>(not bridged)</i></td><td>DS18B20 DAT</td></tr>
         </tbody></table></div>
       <div class="tbl"><table>
         <thead><tr><th colspan="3"><span class="sw" style="--c:var(--b-black)"></span>Black · 5V (bridge Bk1–Bk2)</th></tr><tr><th>Block</th><th>Clamp A</th><th>Clamp B</th></tr></thead>
@@ -506,7 +506,7 @@ svg .d-w9 { fill: var(--w9); }
           <tr><td class="k">Y1</td><td>ESP32 3V3</td><td>Ultrasonic pin 1, red</td></tr>
           <tr><td class="k">Y2</td><td>Zone 21 sensor V</td><td>Zone 22 sensor V</td></tr>
           <tr><td class="k">Y3</td><td>Zone 23 sensor V</td><td>Zone 24 sensor V</td></tr>
-          <tr><td class="k">Y4</td><td>DS18B20 VCC</td><td>4.7k to Gy5</td></tr>
+          <tr><td class="k">Y4</td><td>DS18B20 VCC</td><td></td></tr>
           <tr><td class="k">Y5</td><td>Relay VCC</td><td>spare</td></tr>
         </tbody></table></div>
       <div class="tbl"><table>
@@ -559,7 +559,7 @@ svg .d-w9 { fill: var(--w9); }
       <li><b>Moisture sensors, one at a time.</b> V → Y2/Y3, G → Gn5, S → its blue block. Its zone card shows a moisture %: high in air, low in a glass of water. Note both readings for calibration.</li>
       <li><b>Relay module.</b> Flash the relay firmware first: it drives the inputs HIGH, which is off. Pull the jumper, then JD-VCC → Bk2, VCC → Y5, both GNDs → Gn3. Jumper the NO terminals to Gy1 and the NC terminals to Gn3, with the 100µF across them. Then the IN wires: GPIO 4, 5, 25, 13, 14, 15, 16, 17 → IN1–IN8. No relay should click at power-up.</li>
       <li><b>Valves, one zone at a time.</b> Each valve's two wires go to its pair of COM terminals. Press Open, then Close on the dashboard: one relay LED flashes and the valve clicks each way.</li>
-      <li><b>DS18B20 (optional).</b> VCC → Y4, GND → Gn4, data → Gy5, with the 4.7k from Gy5 to Y4.</li>
+      <li><b>DS18B20.</b> On its adapter board: probe red → VCC, yellow → DAT, black → GND at the screw terminals. Header VCC → Y4, GND → Gn4, DAT → Gy5. The board has the 4.7k pull-up built in (check: about 4.7 kΩ between VCC and DAT, with power off), so no resistor on the rail. Mount the probe beside the ultrasonic sensor, in shade and open air.</li>
     </ol>
   </section>
 </main>

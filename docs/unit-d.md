@@ -15,7 +15,7 @@ The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wi
 | 4 × Rainbird 9V latching solenoid | Zone valves, same as Units A–C |
 | 4 × DFRobot SEN0308 | Waterproof capacitive soil moisture sensor, one per zone |
 | Taidacent waterproof ultrasonic sensor (UART) | Pond level, mounted above the water looking down |
-| DS18B20 (optional) | Temperature, same as Units A–C |
+| DS18B20 waterproof probe on its adapter board (4.7k pull-up built in) | Air temperature at the ultrasonic sensor, to correct the pond reading for the speed of sound |
 
 ## Pins
 
@@ -28,7 +28,7 @@ The full wiring diagram, DIN rail map and build-and-test order are in [unit-d-wi
 | 32, 33, 34, 35 | SEN0308 signal for zones 21, 22, 23, 24 |
 | 26 | Ultrasonic sensor pin 4, **white** (its TX) |
 | 27 | Ultrasonic sensor pin 3, **yellow** (its RX) |
-| 21 | DS18B20 data (4.7k pull-up to 3.3V) |
+| 21 | DS18B20 DAT (the adapter board has the 4.7k pull-up to 3.3V) |
 | 2 | On-board LED: solid = online, blinking = no WiFi |
 
 All grounds go to one common ground, as on the other units.
@@ -46,6 +46,7 @@ Unit D drives its valves from the same Songle 8-relay module as Unit E, not DRV8
 - Wires: pin 1 **red** = VCC, pin 2 **black** = ground, pin 3 **yellow** = RX (to GPIO 27), pin 4 **white** = TX (to GPIO 26).
 - It runs on 3.3–5V. Power it from the ESP32's **3.3V**, so its TX signal is 3.3V and goes straight to GPIO 26. Don't power it from 5V without a divider on the white wire (10k from the white wire to GPIO 26, 20k from GPIO 26 to ground): a 5V signal can damage the ESP32 input.
 - Mount it pointing straight down at open water, clear of the pond edge, plants and anything the beam could hit first. It can't read closer than about 25 cm, so leave at least that much between it and the highest the water ever gets.
+- **Temperature.** The sensor times an echo, and sound travels about 0.17% faster per °C, so at 1.6 m a 10 °C warmer afternoon reads the water about 1.1 in closer. Mount the DS18B20 probe beside the sensor, in the shade and in open air rather than inside an enclosure in the sun. Each stored reading keeps the temperature with it, and the server scales the distance to what it would be at 20 °C. The correction only applies when the setting `pond_temp_comp` is `1`. It's off until a bench test, with the sensor held still for a day while the room warms and cools, shows the sensor doesn't already correct for temperature itself. A second correction on top of its own would make the error worse.
 
 ## Pond level on the dashboard
 

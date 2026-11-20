@@ -233,11 +233,13 @@ function drawPondChart(readings, normalMm) {
 
     const css    = getComputedStyle(document.documentElement);
     const color  = n => css.getPropertyValue(n).trim();
-    // The line is the 3-hour running average; the tooltip also shows that half hour's reading
-    const inches = mm => +((normalMm != null ? normalMm - mm : -mm) / 25.4).toFixed(1);
+    // The line is the 3-hour average held steady until it moves more than 0.5 in
+    // (the sensor's accuracy); the tooltip also shows the average and that half hour's reading
+    const inches = mm => +((normalMm != null ? normalMm - mm : -mm) / 25.4).toFixed(2);
     const points = readings.map(r => ({
         x: new Date(r.at.replace(' ', 'T')).getTime(),
-        y: inches(r.avg_mm ?? r.mm),
+        y: inches(r.level_mm ?? r.avg_mm ?? r.mm),
+        avg: inches(r.avg_mm ?? r.mm),
         raw: inches(r.mm),
     }));
     const signed = v => `${v > 0 ? '+' : ''}${v} in`;
@@ -250,7 +252,7 @@ function drawPondChart(readings, normalMm) {
         type: 'line',
         data: { datasets: [{
             data: points, borderColor: color('--blue'), backgroundColor: color('--blue'),
-            borderWidth: 2, pointRadius: points.length > 60 ? 0 : 2, tension: 0.25,
+            borderWidth: 2, pointRadius: points.length > 60 ? 0 : 2, stepped: true,
         }] },
         options: {
             responsive: true, maintainAspectRatio: false, animation: false,
@@ -259,8 +261,9 @@ function drawPondChart(readings, normalMm) {
                 legend: { display: false },
                 tooltip: { callbacks: {
                     title: items => new Date(items[0].parsed.x).toLocaleString(),
-                    label: item => [`3-hour average ${signed(item.parsed.y)}`,
-                                    `Reading ${signed(item.raw.raw)}`],
+                    label: item => [`Level ${signed(item.raw.y.toFixed(1))}`,
+                                    `3-hour average ${signed(item.raw.avg.toFixed(2))}`,
+                                    `Reading ${signed(item.raw.raw.toFixed(2))}`],
                 } },
             },
             scales: {

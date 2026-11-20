@@ -4,24 +4,56 @@
 // the latest is kept for the dashboard and one reading every 30 minutes goes into
 // pond_level_readings for the graph. Level is shown against a "normal" distance set
 // from the dashboard: a smaller distance means the water is higher.
+//
+// Temperature: the sensor times an echo and assumes a fixed speed of sound, but sound
+// travels about 0.17% faster per °C, so a warm afternoon reads the water closer than it
+// is (about 0.1 in per °C at 1.6 m). With the DS18B20 next to the sensor, each reading is
+// scaled to what it would be at 20 °C. The correction is off until the setting
+// pond_temp_comp is '1': if the sensor already corrects for temperature itself, a
+// second correction would make the error worse. A bench test with the sensor still
+// shows which.
 class PondLevel {
     const UNIT_ID        = 4;
     const RECORD_SEC     = 1800;   // one stored reading every 30 minutes
     const MIN_MM         = 200;    // outside the sensor's range = bad reading
     const MAX_MM         = 4500;
     const MM_PER_INCH    = 25.4;
+    const REF_C          = 20.0;   // temperature corrected distances are scaled to
 
     public static function valid($mm): bool {
         return is_numeric($mm) && $mm >= self::MIN_MM && $mm <= self::MAX_MM;
     }
 
-    // Store a reading if the last stored one is 30 minutes old (a little early is fine,
-    // so the readings don't drift later by one report interval each time)
-    public static function record(int $mm): void {
+    // DS18B20 reading, or not: -127 = no sensor, 85 = read before a conversion finished
+    public static function validTemp($c): bool {
+        return is_numeric($c) && $c > -40 && $c < 70 && (float)$c != 85.0;
+    }
+
+    public static function tempCompOn(): bool {
+        return Database::get()->query("SELECT value FROM settings WHERE key_name = 'pond_temp_comp'")->fetchColumn() === '1';
+    }
+
+    // Speed of sound in air (m/s) at a temperature
+    private static function soundSpeed(float $c): float {
+        return 331.3 * sqrt(1 + $c / 273.15);
+    }
+
+    // The distance the sensor would have read at REF_C. Returned unchanged when the
+    // correction is off or there's no temperature with the reading.
+    public static function corrected(int $mm, ?float $tempC, ?bool $on = null): float {
+        $on ??= self::tempCompOn();
+        if (!$on || $tempC === null) return (float)$mm;
+        return $mm * self::soundSpeed(self::REF_C) / self::soundSpeed($tempC);
+    }
+
+    // Store a reading (with the temperature at the time, when there's a DS18B20) if the
+    // last stored one is 30 minutes old (a little early is fine, so the readings don't
+    // drift later by one report interval each time)
+    public static function record(int $mm, ?float $tempC = null): void {
         $db   = Database::get();
         $last = $db->query("SELECT TIMESTAMPDIFF(SECOND, MAX(recorded_at), NOW()) FROM pond_level_readings")->fetchColumn();
         if ($last !== null && (int)$last < self::RECORD_SEC - 45) return;
-        $db->prepare("INSERT INTO pond_level_readings (distance_mm) VALUES (?)")->execute([$mm]);
+        $db->prepare("INSERT INTO pond_level_readings (distance_mm, temp_c) VALUES (?, ?)")->execute([$mm, $tempC]);
     }
 
     public static function normalMm(): ?int {
@@ -42,14 +74,22 @@ class PondLevel {
         return round(($normalMm - $mm) / self::MM_PER_INCH, 1);
     }
 
-    // Latest reading from Unit D's last report: ['distance_mm' => int|null, 'at' => string|null]
+    // Latest reading from Unit D's last report, temperature corrected when that's on:
+    // ['distance_mm' => int|null, 'raw_mm' => int|null, 'temp_c' => float|null, 'at' => string|null]
     public static function current(): array {
         $row = Database::get()->query("
-            SELECT JSON_EXTRACT(report, '$.pond_mm') AS mm, JSON_UNQUOTE(JSON_EXTRACT(report, '$.pond_at')) AS at
+            SELECT JSON_EXTRACT(report, '$.pond_mm') AS mm, JSON_EXTRACT(report, '$.pond_temp_c') AS t,
+                   JSON_UNQUOTE(JSON_EXTRACT(report, '$.pond_at')) AS at
             FROM unit_status WHERE unit_id = " . self::UNIT_ID
         )->fetch();
         $mm = $row && is_numeric($row['mm']) ? (int)$row['mm'] : null;
-        return ['distance_mm' => $mm, 'at' => $mm !== null ? $row['at'] : null];
+        $t  = $row && is_numeric($row['t'])  ? (float)$row['t'] : null;
+        return [
+            'distance_mm' => $mm !== null ? (int)round(self::corrected($mm, $t)) : null,
+            'raw_mm'      => $mm,
+            'temp_c'      => $mm !== null ? $t : null,
+            'at'          => $mm !== null ? $row['at'] : null,
+        ];
     }
 
     // Summary for the dashboard (Unit D card and the Unit E pictorial)
@@ -61,20 +101,28 @@ class PondLevel {
             'at'          => $cur['at'],
             'normal_mm'   => $normal,
             'offset_in'   => self::offsetIn($cur['distance_mm'], $normal),
+            'temp_c'      => $cur['temp_c'],
+            'temp_comp'   => self::tempCompOn(),
             'online'      => ZoneUnit::isOnline(self::UNIT_ID),
         ];
     }
 
-    // Stored readings for the graph, oldest first. Each carries the raw distance and a
-    // running average of the readings in the 3 hours up to it ('avg_mm'): the sensor
-    // wanders about ±0.5 in between readings while a pond this size moves far slower.
+    // Stored readings for the graph, oldest first. Each carries:
+    //   mm       that reading's distance (temperature corrected when that's on)
+    //   temp_c   the DS18B20 temperature with it, or null
+    //   avg_mm   the average of the readings in the 3 hours up to it
+    //   level_mm the graphed level: the 3-hour average held steady until it moves
+    //            more than 0.5 in (the sensor's accuracy) away, then moved to the new
+    //            average. A still pond draws a flat line; a real change of more than
+    //            0.5 in shows as a step.
     // Readings from the 3 hours before the range are fetched too, so the first points
     // in the range get a full average.
     const AVG_SEC = 3 * 3600;
+    const HOLD_MM = 12.7;   // 0.5 in
 
     public static function history(int $days): array {
         $stmt = Database::get()->prepare("
-            SELECT distance_mm, recorded_at, UNIX_TIMESTAMP(recorded_at) AS ts,
+            SELECT distance_mm, temp_c, recorded_at, UNIX_TIMESTAMP(recorded_at) AS ts,
                    recorded_at >= NOW() - INTERVAL ? DAY AS in_range
             FROM pond_level_readings
             WHERE recorded_at >= NOW() - INTERVAL ? DAY - INTERVAL " . self::AVG_SEC . " SECOND
@@ -83,16 +131,27 @@ class PondLevel {
         $stmt->execute([$days, $days]);
         $rows = $stmt->fetchAll();
 
-        $out = []; $start = 0; $sum = 0;
+        // Temperature corrected distances (when that's on) go into the average
+        $on = self::tempCompOn();
+        foreach ($rows as &$r) {
+            $r['mm'] = self::corrected((int)$r['distance_mm'], $r['temp_c'] !== null ? (float)$r['temp_c'] : null, $on);
+        }
+        unset($r);
+
+        $out = []; $start = 0; $sum = 0; $held = null;
         foreach ($rows as $i => $r) {
-            $sum += (int)$r['distance_mm'];
+            $sum += $r['mm'];
             // Drop readings 3 hours or more older than this one
-            while ($rows[$start]['ts'] <= $r['ts'] - self::AVG_SEC) $sum -= (int)$rows[$start++]['distance_mm'];
+            while ($rows[$start]['ts'] <= $r['ts'] - self::AVG_SEC) $sum -= $rows[$start++]['mm'];
+            $avg = $sum / ($i - $start + 1);
+            if ($held === null || abs($avg - $held) > self::HOLD_MM) $held = $avg;
             if (!$r['in_range']) continue;
             $out[] = [
-                'mm'     => (int)$r['distance_mm'],
-                'avg_mm' => round($sum / ($i - $start + 1), 1),
-                'at'     => $r['recorded_at'],
+                'mm'       => round($r['mm'], 1),
+                'temp_c'   => $r['temp_c'] !== null ? (float)$r['temp_c'] : null,
+                'avg_mm'   => round($avg, 1),
+                'level_mm' => round($held, 1),
+                'at'       => $r['recorded_at'],
             ];
         }
         return $out;

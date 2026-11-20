@@ -108,16 +108,19 @@ class ZoneUnit {
 
         // Unit D: the pond reading comes with the sensors (once a minute). Keep the last
         // one between those reports so the dashboard always has it.
-        $pondMm = null;
+        $pondMm = null; $pondTempC = null;
         if ($unitId === PondLevel::UNIT_ID) {
             $prev = $db->prepare("SELECT report FROM unit_status WHERE unit_id = ?");
             $prev->execute([$unitId]);
             $old = json_decode((string)$prev->fetchColumn(), true) ?: [];
             $report['pond_mm'] = $old['pond_mm'] ?? null;
             $report['pond_at'] = $old['pond_at'] ?? null;
+            $report['pond_temp_c'] = $old['pond_temp_c'] ?? null;
             if (array_key_exists('pond_mm', $body['sensors'] ?? [])) {
                 $pondMm = PondLevel::valid($body['sensors']['pond_mm']) ? (int)$body['sensors']['pond_mm'] : null;
+                $pondTempC = PondLevel::validTemp($body['sensors']['temp_c'] ?? null) ? (float)$body['sensors']['temp_c'] : null;
                 $report['pond_mm'] = $pondMm;
+                $report['pond_temp_c'] = $pondTempC;
                 $report['pond_at'] = $db->query("SELECT NOW()")->fetchColumn();   // same clock as last_seen
             }
         }
@@ -135,7 +138,7 @@ class ZoneUnit {
             if (is_array($body['sensors'] ?? null)) {
                 self::storeSensors($unitId, $body['sensors']);
             }
-            if ($pondMm !== null) PondLevel::record($pondMm);
+            if ($pondMm !== null) PondLevel::record($pondMm, $pondTempC);
         } catch (Throwable $e) {
             error_log("Unit $unitId report storage failed: " . $e->getMessage());
         }

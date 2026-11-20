@@ -388,7 +388,7 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <text x="828" y="880" class="pin">→ GPIO 26</text>
 <rect class="box" x="920" y="776" width="200" height="104" rx="6"/>
 <text x="1020" y="798" class="h" text-anchor="middle">DS18B20</text>
-<text x="1020" y="816" class="m" text-anchor="middle">temperature · optional</text>
+<text x="1020" y="816" class="m" text-anchor="middle">air temp at pond sensor</text>
 <path class="w w33" d="M1120 832 H1150"/>
 <rect class="tag tg-yellow" x="1152" y="823" width="44" height="18" rx="9"/>
 <text x="1174" y="836" class="gt tt-yellow" text-anchor="middle">Y4</text>
@@ -400,6 +400,6 @@ text { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
 <path class="w ws" d="M1120 868 H1150"/>
 <rect class="blk b-grey" x="1150" y="857" width="34" height="22" rx="3"/>
 <text x="1167" y="872" class="bl bl-grey" text-anchor="middle">Gy5</text>
-<text x="1114" y="864" class="pl" text-anchor="end">DATA</text>
-<text x="928" y="872" class="m">4.7k: Gy5 → Y4</text>
+<text x="1114" y="864" class="pl" text-anchor="end">DAT</text>
+<text x="928" y="872" class="m">4.7k pull-up on its board</text>
 </svg>
