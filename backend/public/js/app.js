@@ -241,6 +241,7 @@ function drawPondChart(readings, normalMm) {
         y: inches(r.level_mm ?? r.avg_mm ?? r.mm),
         avg: inches(r.avg_mm ?? r.mm),
         raw: inches(r.mm),
+        tempF: r.temp_c != null ? (r.temp_c * 9 / 5 + 32).toFixed(1) : null,
     }));
     const signed = v => `${v > 0 ? '+' : ''}${v} in`;
     const yTitle = normalMm != null ? 'Inches above / below normal' : 'Inches below sensor';
@@ -263,7 +264,8 @@ function drawPondChart(readings, normalMm) {
                     title: items => new Date(items[0].parsed.x).toLocaleString(),
                     label: item => [`Level ${signed(item.raw.y.toFixed(1))}`,
                                     `3-hour average ${signed(item.raw.avg.toFixed(2))}`,
-                                    `Reading ${signed(item.raw.raw.toFixed(2))}`],
+                                    `Reading ${signed(item.raw.raw.toFixed(2))}`,
+                                    ...(item.raw.tempF != null ? [`Temperature ${item.raw.tempF} °F`] : [])],
                 } },
             },
             scales: {
