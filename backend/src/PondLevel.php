@@ -5,20 +5,18 @@
 // pond_level_readings for the graph. Level is shown against a "normal" distance set
 // from the dashboard: a smaller distance means the water is higher.
 //
-// Temperature: the sensor times an echo and assumes a fixed speed of sound, but sound
-// travels about 0.17% faster per °C, so a warm afternoon reads the water closer than it
-// is (about 0.1 in per °C at 1.6 m). With the DS18B20 next to the sensor, each reading is
-// scaled to what it would be at 20 °C. The correction is off until the setting
-// pond_temp_comp is '1': if the sensor already corrects for temperature itself, a
-// second correction would make the error worse. A bench test with the sensor still
-// shows which.
+// Temperature: a sensor that assumes a fixed speed of sound reads the water closer on a
+// warm day (sound travels about 0.17% faster per °C, about 2.8 mm per °C at 1.6 m).
+// corrected() undoes that from the DS18B20 next to the sensor, when the setting
+// pond_temp_comp is '1'. It stays '0': a heater test on 2026-11-21 showed the Taidacent
+// sensor corrects for temperature itself. See docs/unit-d.md.
 class PondLevel {
     const UNIT_ID        = 4;
     const RECORD_SEC     = 1800;   // one stored reading every 30 minutes
     const MIN_MM         = 200;    // outside the sensor's range = bad reading
     const MAX_MM         = 4500;
     const MM_PER_INCH    = 25.4;
-    const REF_C          = 20.0;   // temperature corrected distances are scaled to
+    const REF_C          = 20.0;   // speed of sound an uncorrected sensor is assumed to use
 
     public static function valid($mm): bool {
         return is_numeric($mm) && $mm >= self::MIN_MM && $mm <= self::MAX_MM;
@@ -38,12 +36,14 @@ class PondLevel {
         return 331.3 * sqrt(1 + $c / 273.15);
     }
 
-    // The distance the sensor would have read at REF_C. Returned unchanged when the
-    // correction is off or there's no temperature with the reading.
+    // The true distance, for a sensor that assumes the speed of sound at REF_C: a warm
+    // reading moves out, a cold one in. Returned unchanged when the correction is off
+    // or there's no temperature with the reading.
     public static function corrected(int $mm, ?float $tempC, ?bool $on = null): float {
         $on ??= self::tempCompOn();
         if (!$on || $tempC === null) return (float)$mm;
-        return $mm * self::soundSpeed(self::REF_C) / self::soundSpeed($tempC);
+        // The sensor reads distance × speed assumed ÷ speed actual, so multiply back
+        return $mm * self::soundSpeed($tempC) / self::soundSpeed(self::REF_C);
     }
 
     // Store a reading (with the temperature at the time, when there's a DS18B20) if the
