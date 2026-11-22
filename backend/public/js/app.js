@@ -169,7 +169,8 @@ function renderPond() {
               </div>
               <button class="btn-close" id="pondNormalBtn" onclick="setPondNormal()">Set current level as normal</button>
             </div>
-            <div class="pond-now"><span id="pondOffset" class="pond-offset"></span> <span id="pondDetail" class="zone-sensors"></span></div>
+            <div class="pond-now"><span id="pondOffset" class="pond-offset"></span> <span id="pondDetail" class="zone-sensors"></span>
+              <div id="pondTrend" class="zone-sensors pond-trend"></div></div>
             <div class="pond-range">
               ${[[1, '24 hours'], [7, '7 days'], [30, '30 days']].map(([d, t]) =>
                 `<button data-days="${d}" onclick="setPondDays(${d})">${t}</button>`).join('')}
@@ -218,42 +219,63 @@ async function loadPondHistory() {
     try {
         const res  = await apiFetch(`/api/pond_level.php?days=${pondDays}`);
         const data = await res.json();
-        drawPondChart(data.readings || [], data.pond?.normal_mm ?? null);
+        drawPondChart(data);
+        renderPondTrend(data.trend);
     } catch (e) {
         console.error('Pond history failed:', e);
     }
 }
 
 // Against the normal level once it's set; before that, inches below the sensor
-// (drawn negative, so higher water is still higher on the graph)
-function drawPondChart(readings, normalMm) {
+// (drawn negative, so higher water is still higher on the graph).
+// 24 hours: the 3-hour average held steady until it moves more than 0.5 in (the
+// sensor's accuracy). 7 and 30 days: one average per day, so slow changes such as
+// evaporation show as a slope.
+function drawPondChart(data) {
+    const normalMm = data.pond?.normal_mm ?? null;
+    const daily    = pondDays !== 1;
+    const rows     = daily ? (data.daily || []) : (data.readings || []);
     const empty = document.getElementById('pondChartEmpty');
-    empty.style.display = readings.length ? 'none' : '';
+    empty.style.display = rows.length ? 'none' : '';
     if (typeof Chart === 'undefined') { empty.textContent = 'Graph library did not load.'; empty.style.display = ''; return; }
 
     const css    = getComputedStyle(document.documentElement);
     const color  = n => css.getPropertyValue(n).trim();
-    // The line is the 3-hour average held steady until it moves more than 0.5 in
-    // (the sensor's accuracy); the tooltip also shows the average and that half hour's reading
     const inches = mm => +((normalMm != null ? normalMm - mm : -mm) / 25.4).toFixed(2);
-    const points = readings.map(r => ({
+    const toF    = c => c != null ? (c * 9 / 5 + 32).toFixed(1) : null;
+    const points = rows.map(r => ({
         x: new Date(r.at.replace(' ', 'T')).getTime(),
-        y: inches(r.level_mm ?? r.avg_mm ?? r.mm),
-        avg: inches(r.avg_mm ?? r.mm),
-        raw: inches(r.mm),
-        tempF: r.temp_c != null ? (r.temp_c * 9 / 5 + 32).toFixed(1) : null,
+        y: daily ? inches(r.mm) : inches(r.level_mm ?? r.avg_mm ?? r.mm),
+        avg: daily ? null : inches(r.avg_mm ?? r.mm),
+        raw: daily ? null : inches(r.mm),
+        tempF: toF(r.temp_c),
+        date: r.date, count: r.count,
     }));
     const signed = v => `${v > 0 ? '+' : ''}${v} in`;
     const yTitle = normalMm != null ? 'Inches above / below normal' : 'Inches below sensor';
-    const fmt    = ms => new Date(ms).toLocaleString([], pondDays === 1
-        ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric' });
+    const fmt    = ms => new Date(ms).toLocaleString([], daily
+        ? { month: 'short', day: 'numeric' } : { hour: 'numeric', minute: '2-digit' });
+    // Show at least 1 inch top to bottom, so a few hundredths don't fill the graph
+    const ys  = points.map(p => p.y);
+    const mid = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
+
+    const tooltipLines = p => daily
+        ? [`Daily average ${signed(p.y.toFixed(2))}`,
+           `${p.count} reading${p.count === 1 ? '' : 's'}`,
+           ...(p.tempF != null ? [`Average temperature ${p.tempF} °F`] : [])]
+        : [`Level ${signed(p.y.toFixed(1))}`,
+           `3-hour average ${signed(p.avg.toFixed(2))}`,
+           `Reading ${signed(p.raw.toFixed(2))}`,
+           ...(p.tempF != null ? [`Temperature ${p.tempF} °F`] : [])];
 
     if (pondChart) pondChart.destroy();
     pondChart = new Chart(document.getElementById('pondChart'), {
         type: 'line',
         data: { datasets: [{
             data: points, borderColor: color('--blue'), backgroundColor: color('--blue'),
-            borderWidth: 2, pointRadius: points.length > 60 ? 0 : 2, stepped: true,
+            borderWidth: 2,
+            ...(daily ? { pointRadius: 3, tension: 0 }
+                      : { pointRadius: points.length > 60 ? 0 : 2, stepped: true }),
         }] },
         options: {
             responsive: true, maintainAspectRatio: false, animation: false,
@@ -261,22 +283,35 @@ function drawPondChart(readings, normalMm) {
             plugins: {
                 legend: { display: false },
                 tooltip: { callbacks: {
-                    title: items => new Date(items[0].parsed.x).toLocaleString(),
-                    label: item => [`Level ${signed(item.raw.y.toFixed(1))}`,
-                                    `3-hour average ${signed(item.raw.avg.toFixed(2))}`,
-                                    `Reading ${signed(item.raw.raw.toFixed(2))}`,
-                                    ...(item.raw.tempF != null ? [`Temperature ${item.raw.tempF} °F`] : [])],
+                    title: items => {
+                        const p = items[0].raw;
+                        return p.date
+                            ? new Date(p.date + 'T12:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+                            : new Date(p.x).toLocaleString();
+                    },
+                    label: item => tooltipLines(item.raw),
                 } },
             },
             scales: {
                 x: { type: 'linear', ticks: { color: color('--muted'), callback: fmt, maxTicksLimit: 8 },
                      grid: { color: color('--border') } },
                 y: { title: { display: true, text: yTitle, color: color('--muted') },
+                     suggestedMin: mid - 0.5, suggestedMax: mid + 0.5,
                      ticks: { color: color('--muted') },
                      grid: { color: ctx => normalMm != null && ctx.tick.value === 0 ? color('--green') : color('--border') } },
             },
         },
     });
+}
+
+// "Trend over 7 days: falling 0.12 in/day" from a straight-line fit on the server
+function renderPondTrend(trend) {
+    const el = document.getElementById('pondTrend');
+    if (!trend) { el.textContent = 'Trend: needs 2 days of readings'; return; }
+    const span = trend.days < 7 ? `${trend.days} days` : '7 days';
+    el.textContent = trend.steady
+        ? `Trend over ${span}: steady (under 0.02 in/day)`
+        : `Trend over ${span}: ${trend.in_per_day > 0 ? 'rising' : 'falling'} ${Math.abs(trend.in_per_day).toFixed(2)} in/day`;
 }
 
 async function setPondNormal() {

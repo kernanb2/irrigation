@@ -156,4 +156,69 @@ class PondLevel {
         }
         return $out;
     }
+
+    // ── Slow changes (evaporation, seepage) ──────────────────────────────────────
+    // One reading wanders about ±2 mm, but the average of a day's 48 readings is good
+    // to a fraction of a millimetre, so a 0.1 in/day drop that the 0.5 in hold hides
+    // shows clearly in daily averages and in a straight-line trend.
+    const TREND_DAYS     = 7;
+    const TREND_MIN_DAYS = 2;      // need this much history before showing a trend
+    const STEADY_IN_DAY  = 0.02;   // slower than this reads as "steady"
+
+    // Readings since a time, temperature corrected when that's on, oldest first
+    private static function rowsSince(string $sql): array {
+        $rows = Database::get()->query("
+            SELECT distance_mm, temp_c, recorded_at, DATE(recorded_at) AS d, UNIX_TIMESTAMP(recorded_at) AS ts
+            FROM pond_level_readings WHERE recorded_at >= $sql ORDER BY recorded_at
+        ")->fetchAll();
+        $on = self::tempCompOn();
+        foreach ($rows as &$r) {
+            $r['mm'] = self::corrected((int)$r['distance_mm'], $r['temp_c'] !== null ? (float)$r['temp_c'] : null, $on);
+        }
+        return $rows;
+    }
+
+    // One point per calendar day for the 7- and 30-day graphs: the average distance,
+    // placed at the middle of that day's readings (so today's partial day sits at its
+    // own midpoint), with the day's average temperature and reading count
+    public static function daily(int $days): array {
+        $byDay = [];
+        foreach (self::rowsSince("CURDATE() - INTERVAL " . ($days - 1) . " DAY") as $r) $byDay[$r['d']][] = $r;
+        $out = [];
+        foreach ($byDay as $d => $rs) {
+            $temps = array_filter(array_column($rs, 'temp_c'), fn($t) => $t !== null);
+            $mid   = array_sum(array_column($rs, 'ts')) / count($rs);
+            $out[] = [
+                'date'   => $d,
+                'mm'     => round(array_sum(array_column($rs, 'mm')) / count($rs), 1),
+                'temp_c' => $temps ? round(array_sum($temps) / count($temps), 2) : null,
+                'count'  => count($rs),
+                'at'     => date('Y-m-d H:i:s', (int)$mid),
+            ];
+        }
+        return $out;
+    }
+
+    // Straight-line fit of level against time over the last 7 days:
+    // ['in_per_day' => + rising / − falling, 'days' => history used, 'steady' => bool],
+    // or null with less than 2 days of readings
+    public static function trend(): ?array {
+        $rows = self::rowsSince("NOW() - INTERVAL " . self::TREND_DAYS . " DAY");
+        if (count($rows) < 2) return null;
+        $span = $rows[count($rows) - 1]['ts'] - $rows[0]['ts'];
+        if ($span < self::TREND_MIN_DAYS * 86400) return null;
+
+        $n  = count($rows);
+        $xs = array_map(fn($r) => ($r['ts'] - $rows[0]['ts']) / 86400, $rows);   // days
+        $ys = array_map(fn($r) => -$r['mm'] / self::MM_PER_INCH, $rows);         // higher water = up
+        $mx = array_sum($xs) / $n; $my = array_sum($ys) / $n;
+        $sxy = 0; $sxx = 0;
+        foreach ($xs as $i => $x) { $sxy += ($x - $mx) * ($ys[$i] - $my); $sxx += ($x - $mx) ** 2; }
+        $slope = $sxy / $sxx;
+        return [
+            'in_per_day' => round($slope, 2),
+            'days'       => round($span / 86400, 1),
+            'steady'     => abs($slope) < self::STEADY_IN_DAY,
+        ];
+    }
 }

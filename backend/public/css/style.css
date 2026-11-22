@@ -238,6 +238,7 @@ main {
 .pond-card #pondNormalBtn { flex: 0 0 auto; padding: 0.4rem 0.75rem; }
 .pond-now    { margin: 0.25rem 0 0.75rem; }
 .pond-now .zone-sensors { margin-bottom: 0; display: inline; }
+.pond-now .pond-trend   { display: block; margin-top: 0.25rem; }
 .pond-offset { font-size: 1.1rem; font-weight: 600; margin-right: 0.5rem; }
 .level-up   { color: var(--blue);   fill: var(--blue); }
 .level-down { color: var(--orange); fill: var(--orange); }

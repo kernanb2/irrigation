@@ -1,6 +1,6 @@
 <?php
-// Web UI — Unit D pond level. GET ?days=1|7|30 returns the current level and the
-// 30-minute readings, each with a 3-hour running average, for the graph;
+// Web UI — Unit D pond level. GET ?days=1|7|30 returns the current level, the graph's
+// readings (30-minute for 1 day, daily averages for 7 and 30) and the 7-day trend;
 // POST {"action": "set_normal"} makes the latest reading the pond's normal level.
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../src/Database.php';
@@ -28,8 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $days = (int)($_GET['days'] ?? 7);
 if (!in_array($days, [1, 7, 30], true)) $days = 7;
 
+// 24 hours: every 30-minute reading (the graph draws the held 3-hour average).
+// 7 and 30 days: one average per day, so slow changes like evaporation show.
 echo json_encode([
     'pond'     => PondLevel::summary(),
     'days'     => $days,
-    'readings' => PondLevel::history($days),
+    'readings' => $days === 1 ? PondLevel::history(1) : [],
+    'daily'    => $days === 1 ? [] : PondLevel::daily($days),
+    'trend'    => PondLevel::trend(),
 ]);

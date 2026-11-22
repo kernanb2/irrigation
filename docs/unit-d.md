@@ -55,7 +55,10 @@ Unit D drives its valves from the same Songle 8-relay module as Unit E, not DRV8
 
 - Unit D sends the distance to the water once a minute. The server stores **one reading every 30 minutes** in `pond_level_readings` for the graph.
 - When the pond is where you want it, press **Set current level as normal** on the Pond Level card. The card, the graph and the Unit E pictorial then show the level as ▲/▼ inches above or below normal. You can set it again any time; the graph is recalculated from the stored distances.
-- The graph shows 24 hours, 7 days or 30 days.
+- The graph shows 24 hours, 7 days or 30 days:
+  - **24 hours:** the 3-hour average of the readings, held flat until it moves more than 0.5 in (the sensor's accuracy). A still pond draws a flat line, and a real change shows as a step. The tooltip shows the held level, the 3-hour average, that half hour's reading and the temperature in °F.
+  - **7 and 30 days:** one point per day, the average of that day's readings, with today's partial day at its midpoint. Over a day the sensor's ±2 mm scatter averages out, so a slow change such as evaporation (around 0.1 in/day) shows as a steady slope that the 0.5 in hold would hide.
+- **Trend:** the card shows "Trend over 7 days: falling 0.12 in/day" (or rising, or steady under 0.02 in/day). It's a straight-line fit through the last 7 days of readings, shown once there are 2 days of readings. A fill, a drain or heavy rain inside the window pulls the trend; it settles again as that drops out of the 7 days.
 
 ## Flashing
 
