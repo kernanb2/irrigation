@@ -70,6 +70,7 @@ async function fetchAll() {
         renderPond();
         renderExtraUnits();
         renderAutomation();
+        renderSchedule();
         renderEvents(events);
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
     } catch (e) {
@@ -1067,8 +1068,9 @@ function renderRunCard(card, tr) {
                   ${run.times.map((t, j) => `<span class="timed-chip">${timeText(t)}
                     <button title="Remove ${timeText(t)}" aria-label="Remove ${timeText(t)}" onclick="removeTimedTime(${i}, ${j})">×</button></span>`).join('')}
                   ${run.times.length < tr.max_times ? `<span class="timed-add">
-                    <input type="time" id="trNew${i}" aria-label="New start time">
-                    <button class="btn-close" onclick="addTimedTime(${i})">Add time</button></span>` : ''}
+                    <input type="time" id="trNew${i}" aria-label="New start time"
+                      onblur="addTimedTime(${i}, true)" onkeydown="if (event.key === 'Enter') addTimedTime(${i}, true)">
+                    <button class="btn-close" onmousedown="event.preventDefault()" onclick="addTimedTime(${i})">Add time</button></span>` : ''}
                 </div>
                 <div class="timed-days" role="group" aria-label="Days of the week">
                   ${DAY_LETTERS.map((d, n) => `<label class="day-btn" title="${DAY_NAMES[n]}">
@@ -1104,6 +1106,7 @@ function timedRunsCopy() {
 }
 
 async function saveTimedRuns(runs) {
+    if (timedSaving) return;
     timedSaving = true;
     document.querySelectorAll('.timed-run input, .timed-run select, .timed-run button, .auto-rule-head .btn-primary')
         .forEach(el => el.disabled = true);
@@ -1122,6 +1125,7 @@ async function saveTimedRuns(runs) {
         timedSaving = false;
         RUN_CARDS.forEach(c => document.getElementById(c.id)?.remove());   // rebuild from what's saved
         renderAutomation();
+        renderSchedule();
     }
 }
 
@@ -1148,11 +1152,13 @@ function deleteTimedRun(i) {
     saveTimedRuns(runs);
 }
 
-function addTimedTime(i) {
-    const v = document.getElementById(`trNew${i}`).value;
-    if (!v) { alert('Pick a time first.'); return; }
+// A time typed in the box is saved when you leave the box, press Enter or press Add time
+function addTimedTime(i, quiet = false) {
+    if (timedSaving) return;
+    const v = document.getElementById(`trNew${i}`)?.value;
+    if (!v) { if (!quiet) alert('Pick a time first.'); return; }
     const runs = timedRunsCopy();
-    if (runs[i].times.includes(v)) { alert(`${timeText(v)} is already a start time.`); return; }
+    if (runs[i].times.includes(v)) { if (!quiet) alert(`${timeText(v)} is already a start time.`); return; }
     runs[i].times.push(v);
     saveTimedRuns(runs);
 }
@@ -1173,6 +1179,129 @@ function setTimedDays(i, days) {
     const runs = timedRunsCopy();
     runs[i].days = days;
     saveTimedRuns(runs);
+}
+
+// ── Week schedule ─────────────────────────────────────────────────────────────
+// The timed runs and zone watering over today and the next 6 days: one row per day,
+// one lane per source (fixed order and colour), blocks where a run is scheduled.
+// Runs past midnight carry into the next day's row. Hover a block for its details;
+// "Show as a list" gives the same thing as text.
+const SCHED_ORDER = ['pond_fill', 'creek', 'fountain', 'zone22', 'zone23', 'zone24'];   // = colour slots 1–6
+let schedSig = '', schedListOpen = false;
+
+function scheduleBlocks(tr, dayStart, now) {
+    // Every occurrence that touches this day: runs starting today, and yesterday's that carry over
+    const out = [];
+    const dayEnd = dayStart + 86400000;
+    tr.runs.forEach(run => {
+        [-1, 0].forEach(off => {
+            const base = new Date(dayStart); base.setDate(base.getDate() + off);
+            if (!run.days.includes(base.getDay())) return;
+            run.times.forEach(t => {
+                const [h, m] = t.split(':').map(Number);
+                const s = new Date(base); s.setHours(h, m, 0, 0);
+                const start = s.getTime(), end = start + run.minutes * 60000;
+                if (end <= dayStart || start >= dayEnd) return;
+                out.push({ run, start, end, from: Math.max(start, dayStart), to: Math.min(end, dayEnd),
+                           live: run.enabled && now >= start && now < end && !!run.running_until });
+            });
+        });
+    });
+    return out.sort((a, b) => a.start - b.start);
+}
+
+function renderSchedule() {
+    const box = document.getElementById('weekSchedule');
+    const tr  = automation?.timed_runs, pl = automation?.pond_level;
+    if (!tr || !pl) return;
+    const now   = Date.now();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const sig   = JSON.stringify([tr.runs, pl.filling, pl.started_at, pl.enabled, pl.auto_mode, today.getTime(), Math.floor(now / 60000)]);
+    if (sig === schedSig) return;
+    schedSig = sig;
+
+    const used = SCHED_ORDER.filter(k => tr.runs.some(r => r.source === k) || pl.filling === k);
+    const name = k => tr.sources[k] || k;
+    const hm   = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const blockTip = b => [
+        `${name(b.run.source)}: ${hm(b.start)}–${hm(b.end)} (${minutesText(b.run.minutes)})`,
+        !b.run.enabled ? 'Off: this run won\'t happen' : b.live ? 'Running now' : '',
+        b.run.skip_above_pct !== null && b.run.skip_above_pct !== undefined ? `Skipped if soil moisture is above ${b.run.skip_above_pct}%` : '',
+    ].filter(Boolean).join('\n');
+
+    if (!used.length) {
+        box.innerHTML = '<div class="auto-muted">Nothing scheduled. Add timed runs or zone watering on the Automation panel and they\'ll show here.</div>';
+        return;
+    }
+
+    const hours = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+    const hourLabel = h => h % 24 === 0 ? '12a' : h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`;
+    const days = [], list = [];
+    for (let d = 0; d < 7; d++) {
+        const ds = new Date(today); ds.setDate(ds.getDate() + d);
+        const dayStart = ds.getTime();
+        const blocks = scheduleBlocks(tr, dayStart, now);
+        const label = d === 0 ? 'Today' : d === 1 ? 'Tomorrow' : ds.toLocaleDateString([], { weekday: 'long' });
+        const lanes = used.map((k, li) => {
+            const slot = SCHED_ORDER.indexOf(k) + 1;
+            let marks = blocks.filter(b => b.run.source === k).map(b => {
+                const left = (b.from - dayStart) / 864000, width = Math.max((b.to - b.from) / 864000, 0.4);
+                const cls = ['sched-block', !b.run.enabled && 'off', b.live && 'live', b.run.skip_above_pct != null && 'may-skip'].filter(Boolean).join(' ');
+                return `<span class="${cls}" style="left:${left}%;width:${width}%;--c:var(--series-${slot})"
+                          tabindex="0" data-tip="${escHtml(blockTip(b))}" aria-label="${escHtml(blockTip(b))}"></span>`;
+            }).join('');
+            // The Pond level rule's fill going on now (it isn't on a clock, so only today, up to now)
+            if (d === 0 && pl.filling === k && pl.started_at) {
+                const st = Math.max(new Date(pl.started_at).getTime(), dayStart);
+                const tip = `${name(k)}: filling since ${hm(new Date(pl.started_at).getTime())} (Pond level rule, until the pond is full)`;
+                marks += `<span class="sched-block pond-rule live" style="left:${(st - dayStart) / 864000}%;width:${Math.max((now - st) / 864000, 0.4)}%;--c:var(--series-${slot})"
+                            tabindex="0" data-tip="${escHtml(tip)}" aria-label="${escHtml(tip)}"></span>`;
+            }
+            return `<div class="sched-lane">${marks}</div>`;
+        }).join('');
+        const nowLine = d === 0 ? `<span class="sched-now" style="left:${(now - dayStart) / 864000}%" title="Now: ${hm(now)}"><b>Now</b></span>` : '';
+        days.push(`
+          <div class="sched-day${d === 0 ? ' today' : ''}">
+            <div class="sched-daylabel">${label}<small>${ds.toLocaleDateString([], { month: 'short', day: 'numeric' })}</small></div>
+            <div class="sched-track">${hours.slice(1, -1).map(h => `<span class="sched-grid" style="left:${h / 24 * 100}%"></span>`).join('')}${lanes}${nowLine}</div>
+          </div>`);
+        list.push(`<li><strong>${label}</strong>: ${blocks.length
+            ? blocks.map(b => `${escHtml(name(b.run.source))} ${hm(b.start)}–${hm(b.end)}${!b.run.enabled ? ' (off)' : ''}${b.run.skip_above_pct != null ? ` (skips above ${b.run.skip_above_pct}%)` : ''}`).join('; ')
+            : 'nothing'}</li>`);
+    }
+
+    const notes = [];
+    if (!pl.auto_mode) notes.push('Auto Mode is off, so nothing here will run until it\'s turned on.');
+    if (pl.enabled) notes.push(`The Pond level rule isn't on a clock: it runs ${escHtml(name(pl.config.source))} whenever the pond is ${inchText(pl.config.below_in)} below full${pl.filling ? ' (filling now, shown striped)' : ''}.`);
+
+    box.innerHTML = `
+      <div class="sched-legend">${used.map(k => `<span><i style="--c:var(--series-${SCHED_ORDER.indexOf(k) + 1})"></i>${escHtml(name(k))}</span>`).join('')}
+        <span><i class="key-off"></i>Off</span><span><i class="key-skip"></i>Skips when wet</span></div>
+      <div class="sched-grid-wrap">
+        <div class="sched-day sched-axis"><div class="sched-daylabel"></div>
+          <div class="sched-track">${hours.map(h => `<span class="sched-hour" style="left:${h / 24 * 100}%">${hourLabel(h)}</span>`).join('')}</div></div>
+        ${days.join('')}
+      </div>
+      ${notes.map(n => `<div class="auto-muted sched-note">${n}</div>`).join('')}
+      <details class="sched-list" ${schedListOpen ? 'open' : ''} ontoggle="schedListOpen = this.open"><summary>Show as a list</summary><ul>${list.join('')}</ul></details>
+      <div class="sched-tip" id="schedTip" role="tooltip" hidden></div>`;
+
+    // Hover / focus tooltip
+    const tip = document.getElementById('schedTip');
+    box.querySelectorAll('.sched-block').forEach(el => {
+        const show = () => {
+            tip.textContent = el.dataset.tip;
+            tip.hidden = false;
+            const r = el.getBoundingClientRect(), br = box.getBoundingClientRect();
+            const x = Math.min(Math.max(r.left + r.width / 2 - br.left, 110), br.width - 110);
+            tip.style.left = `${x}px`;
+            tip.style.top  = `${r.top - br.top - 8}px`;
+        };
+        el.addEventListener('mouseenter', show);
+        el.addEventListener('focus', show);
+        el.addEventListener('mouseleave', () => tip.hidden = true);
+        el.addEventListener('blur', () => tip.hidden = true);
+    });
 }
 
 // ── Events table ──────────────────────────────────────────────────────────────

@@ -59,6 +59,12 @@ Auth::require();
       <div id="automationRules" class="auto-rules"><div class="loading">Loading…</div></div>
     </section>
 
+    <!-- Week schedule: the timed runs and zone watering laid out over the next 7 days -->
+    <section class="panel" id="schedulePanel">
+      <div class="panel-header"><h2>Week Schedule</h2></div>
+      <div id="weekSchedule"><div class="loading">Loading…</div></div>
+    </section>
+
     <!-- Event log -->
     <section class="panel">
       <h2>Valve Events — Last 48 Hours</h2>
