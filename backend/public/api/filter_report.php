@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../src/FilterFlush.php';
 require_once __DIR__ . '/../../src/PondDrain.php';
 require_once __DIR__ . '/../../src/PondFill.php';
 require_once __DIR__ . '/../../src/TankDrain.php';
+require_once __DIR__ . '/../../src/TimedRuns.php';
 
 header('Content-Type: application/json');
 
@@ -65,6 +66,10 @@ if (is_array($body['drain'] ?? null)) {
         'tank'         => is_array($d['tank'] ?? null) ? [
             'top_wet'    => (bool)($d['tank']['top_wet'] ?? false),
             'refill_wet' => (bool)($d['tank']['refill_wet'] ?? false),
+        ] + (array_key_exists('low_wet', $d['tank']) ? [   // low level + tank empty sensors, once fitted
+            'low_wet'    => (bool)$d['tank']['low_wet'],
+            'empty_wet'  => (bool)($d['tank']['empty_wet'] ?? false),
+        ] : []) + [
             'full'       => (bool)($d['tank']['full'] ?? false),
             'fault'      => (bool)($d['tank']['fault'] ?? false),
         ] : null,
@@ -118,6 +123,14 @@ if (!empty($body['events']) && is_array($body['events'])) {
     } catch (Throwable $e) {
         error_log('Unit E event logging failed: ' . $e->getMessage());
     }
+}
+
+// Timed runs use the check-ins as their clock (at most one check every 20 s). Before
+// the reply, so a Pond Fill they start or stop goes out with it.
+try {
+    TimedRuns::tick();
+} catch (Throwable $e) {
+    error_log('Timed runs failed: ' . $e->getMessage());
 }
 
 echo json_encode([

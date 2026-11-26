@@ -1,7 +1,8 @@
 // ── State ─────────────────────────────────────────────────────────────────────
-let zones = [], units = {}, schedules = [], pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
+let zones = [], units = {}, pendingZone = null, filter = null, drainFollowTimer = null, zoneFollowTimer = null;
 let fillHoursChoice = null;   // Pond Fill run time picked on the card (sent with Start)
 let tankDrainMinutesChoice = null;   // Storage Tank Drain run time picked on the card
+let automation = null, autoSaving = false;   // Automation panel rules (api/automation.php)
 let pond = null, pondChart = null, pondHistoryMs = 0;   // Unit D pond level
 let pondDays = (() => { try { return parseInt(localStorage.getItem('pondDays')) || 7; } catch { return 7; } })();
 let pondDiagramOpen = (() => { try { return localStorage.getItem('pondDiagramOpen') !== 'false'; } catch { return true; } })();
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAll();
     setInterval(fetchAll, POLL_MS);
 
-    document.getElementById('scheduleForm').addEventListener('submit', submitSchedule);
     document.getElementById('autoToggle').addEventListener('change', toggleAutoMode);
 });
 
@@ -35,17 +35,18 @@ function clockTick() {
 // ── Data fetching ─────────────────────────────────────────────────────────────
 async function fetchAll() {
     try {
-        const [statusRes, eventsRes, filterRes] = await Promise.all([
+        const [statusRes, eventsRes, filterRes, autoRes] = await Promise.all([
             apiFetch('/api/status.php'),
             apiFetch('/api/events.php'),
             apiFetch('/api/filter.php'),
+            apiFetch('/api/automation.php'),
         ]);
         const status = await statusRes.json();
         const events = await eventsRes.json();
         filter       = await filterRes.json();
+        automation   = await autoRes.json();
 
         zones     = status.zones     || [];
-        schedules = status.schedules || [];
         units     = Object.fromEntries((status.units || []).map(u => [u.id, u]));
         pond      = status.pond || null;
 
@@ -68,7 +69,7 @@ async function fetchAll() {
         renderZones();
         renderPond();
         renderExtraUnits();
-        renderSchedules();
+        renderAutomation();
         renderEvents(events);
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
     } catch (e) {
@@ -384,7 +385,9 @@ function drainCard(d) {
             : 'Closed — tank full' + (got.user_pct > 0 ? `, back to ${back} when it drops below the refill sensor` : '');
     }
     const tankLine = tank
-        ? `<div class="zone-sensors">Tank: ${tank.top_wet ? 'at top sensor' : tank.refill_wet ? 'between sensors' : 'below refill sensor'}</div>`
+        ? `<div class="zone-sensors">Tank: ${tank.top_wet ? 'at top sensor' : tank.refill_wet ? 'between sensors'
+             : tank.low_wet === undefined ? 'below refill sensor'
+             : tank.low_wet ? 'below refill sensor' : tank.empty_wet ? 'below low level sensor' : 'empty'}</div>`
         : '';
     badge = !isOpen ? 'Closed' : pos === 100 && !got.moving ? 'Open' : `${pos}%`;
 
@@ -641,8 +644,11 @@ function pondDiagram() {
     const tdState    = !td ? 'unknown' : td.moving && (tankDrainOpen || !td.active) ? 'moving' : tankDrainOpen ? 'open' : 'closed';
     const tdText     = !td ? '—' : tdState === 'moving' ? (tankDrainOpen ? 'opening' : 'closing') : tdState;
     const flushState = i => !online ? 'unknown' : flushing[i] ? 'open' : 'closed';
-    const sensor     = (y, wet) => `<circle class="pd-sensor ${!tank ? 'unknown' : wet ? 'wet' : ''}" cx="700" cy="${y}" r="5"/>`;
-    const waterTop   = !tank ? 215 : tank.top_wet ? 180 : tank.refill_wet ? 205 : 235;
+    // Low level and tank empty sensors aren't fitted yet: grey until Unit E reports them
+    const sensor     = (y, wet) => `<circle class="pd-sensor ${!tank || wet === undefined ? 'unknown' : wet ? 'wet' : ''}" cx="700" cy="${y}" r="5"/>`;
+    const hasLow     = tank && tank.low_wet !== undefined && tank.empty_wet !== undefined;
+    const waterTop   = !tank ? 215 : tank.top_wet ? 180 : tank.refill_wet ? 205
+                     : !hasLow ? 230 : tank.low_wet ? 230 : tank.empty_wet ? 252 : 268;
 
     // Pond level from Unit D, beside the pond
     const lvl      = pondOffsetText(pond?.online ? pond.offset_in : null);
@@ -717,6 +723,10 @@ function pondDiagram() {
           <text class="pd-note" x="710" y="189">top sensor</text>
           ${sensor(215, tank?.refill_wet)}
           <text class="pd-note" x="710" y="219">refill sensor</text>
+          ${sensor(240, tank ? tank.low_wet : undefined)}
+          <text class="pd-note" x="710" y="244">low level sensor${hasLow ? '' : ' (not fitted yet)'}</text>
+          ${sensor(262, tank ? tank.empty_wet : undefined)}
+          <text class="pd-note" x="710" y="266">tank empty sensor${hasLow ? '' : ' (not fitted yet)'}</text>
           <rect class="pd-box" x="650" y="248" width="30" height="20" rx="3"/>
           <text class="pd-note" x="645" y="262" text-anchor="end">pump</text>
           <text class="pd-label" x="640" y="292" text-anchor="middle">Storage tank</text>
@@ -843,81 +853,287 @@ async function valveCmd(zoneId, open) {
     }
 }
 
-// ── Schedules ─────────────────────────────────────────────────────────────────
-function renderSchedules() {
-    const tbody = document.querySelector('#schedulesTable tbody');
-    if (!schedules.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted);text-align:center">No schedules</td></tr>';
+// ── Automation ────────────────────────────────────────────────────────────────
+// Rule cards are built once and rebuilt only after a save, so polling never resets a
+// choice being made; the status lines update on every poll. Each change saves at once.
+const POND_SOURCE_DETAIL = {
+    pond_fill: 'Unit E — spring water to the pond',
+    creek:     'Zone 1, Unit A',
+    fountain:  'Zone 21, Unit D',
+};
+
+function inchText(v) {
+    return `${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })} in`;
+}
+
+function renderAutomation() {
+    const rules = document.getElementById('automationRules');
+    const rule  = automation?.pond_level;
+    if (!rule) { rules.innerHTML = '<div class="loading">Automation not available.</div>'; return; }
+    if (!document.getElementById('autoPondWrap')) {
+        rules.innerHTML = '<div id="autoPondWrap"></div><div id="autoTimedWrap"></div>';
+    }
+    renderTimedRuns();
+    const box = document.getElementById('autoPondWrap');
+
+    const note = document.getElementById('automationNote');
+    note.textContent = rule.auto_mode ? '' : 'Auto Mode is off, so automations are paused. Turn it on at the top of the page.';
+    note.classList.toggle('hidden', rule.auto_mode);
+
+    if (!document.getElementById('autoPond')) {
+        const c = rule.config, ch = rule.choices;
+        const opts = (list, sel) => list.map(v =>
+            `<option value="${v}" ${Number(v) === Number(sel) ? 'selected' : ''}>${inchText(v)}</option>`).join('');
+        box.innerHTML = `
+          <div class="auto-rule" id="autoPond">
+            <div class="auto-rule-head">
+              <h3>Pond level</h3>
+              <label class="toggle" title="Turn this rule on or off">
+                <input type="checkbox" id="apEnabled" ${rule.enabled ? 'checked' : ''} onchange="savePondRule()">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="auto-line">When the pond is
+              <select id="apBelow" onchange="savePondRule()">${opts(ch.below_in, c.below_in)}</select>
+              below full, fill it with:</div>
+            <div class="auto-radios" role="radiogroup" aria-label="How to fill the pond">
+              ${Object.entries(ch.sources).map(([k, label]) => `
+                <label class="auto-radio">
+                  <input type="radio" name="apSource" value="${k}" ${c.source === k ? 'checked' : ''} onchange="savePondRule()">
+                  <span><strong>${escHtml(label)}</strong> <small>${escHtml(POND_SOURCE_DETAIL[k] || '')}</small></span>
+                </label>`).join('')}
+            </div>
+            <div class="auto-line auto-muted">…until it's back to full (the normal level set on the Pond Level card).</div>
+            <div class="auto-line">Low water mark:
+              <select id="apLow" onchange="savePondRule()">${opts(ch.low_mark_in, c.low_mark_in)}</select>
+              below full</div>
+            <div class="auto-line auto-muted">At the low water mark the Pond Drain closes, so the tanks stop taking pond water. It goes back to where it was once the pond is 0.5 in above the mark.</div>
+            <div class="auto-line auto-override">
+              <label class="toggle" title="Override">
+                <input type="checkbox" id="apAllowLow" ${c.allow_below_low ? 'checked' : ''} onchange="savePondRule(this)">
+                <span class="slider"></span>
+              </label>
+              <span><strong>Override:</strong> allow the pond to go below the low water mark</span>
+            </div>
+            <div class="auto-status" id="apStatus"></div>
+          </div>`;
+    }
+
+    // Status
+    const lines = [];
+    const src   = rule.choices.sources[rule.config.source];
+    if (!rule.normal_set)            lines.push('⚠ Set the normal level on the Pond Level card first. Until then the rule can\'t tell how full the pond is.');
+    else if (rule.below_in === null) lines.push('Pond level unknown: no reading from Unit D in the last hour.');
+    else lines.push(rule.below_in > 0
+        ? `Pond is ${inchText(rule.below_in.toFixed(1))} below full (3-hour average).`
+        : `Pond is at or above full (${inchText(Math.abs(rule.below_in).toFixed(1))} above, 3-hour average).`);
+    if (rule.filling) lines.push(`<strong class="auto-on">Filling with ${escHtml(rule.choices.sources[rule.filling])}</strong> since ${new Date(rule.started_at).toLocaleString()}.`);
+    else if (rule.enabled && rule.auto_mode) lines.push(`Waiting. ${escHtml(src)} starts when the pond is ${inchText(rule.config.below_in)} below full.`);
+    else if (!rule.enabled) lines.push('Rule is off.');
+    if (rule.drain_held_pct !== null) lines.push(`<strong class="auto-warn">Pond Drain held closed</strong> (was ${rule.drain_held_pct}%). The pond is at the low water mark.`);
+    if (!rule.source_online) lines.push(`<span class="auto-warn">⚠ ${escHtml(src)} is on a unit that's offline, so it can't run.</span>`);
+    if (rule.last_action) lines.push(`<span class="auto-muted">Last: ${escHtml(rule.last_action)} (${new Date(rule.last_at).toLocaleString()})</span>`);
+    document.getElementById('apStatus').innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+}
+
+async function savePondRule(changed) {
+    if (autoSaving) return;
+    const box = document.getElementById('autoPond');
+    // Ask before letting the pond drop below the low water mark
+    if (changed?.id === 'apAllowLow' && changed.checked
+        && !confirm('Allow the pond to go below the low water mark? The Pond Drain will be left alone even when the pond is that low.')) {
+        changed.checked = false;
         return;
     }
-    tbody.innerHTML = schedules.map(s => `
-        <tr>
-          <td>${escHtml(s.zone_name)}</td>
-          <td>${escHtml(s.name || '—')}</td>
-          <td><code>${escHtml(s.cron_expression)}</code></td>
-          <td>${formatDuration(s.duration_sec)}</td>
-          <td>${s.skip_if_moist ? `&gt;${s.skip_threshold}%` : 'No'}</td>
-          <td>
-            <label class="toggle" title="Enable/disable">
-              <input type="checkbox" ${s.enabled ? 'checked' : ''}
-                onchange="toggleSchedule(${s.id}, this.checked)">
-              <span class="slider"></span>
-            </label>
-          </td>
-          <td><button class="btn-danger" onclick="deleteSchedule(${s.id})">Delete</button></td>
-        </tr>`).join('');
-}
-
-function openScheduleModal() {
-    const sel = document.getElementById('schedZone');
-    // Irrigation zones only — Unit E flush valves run on their own cycle
-    sel.innerHTML = zones.map(z => `<option value="${z.id}">Zone ${z.id} — ${escHtml(z.name)}</option>`).join('');
-    document.getElementById('scheduleModal').classList.remove('hidden');
-}
-
-function closeScheduleModal() {
-    document.getElementById('scheduleModal').classList.add('hidden');
-    document.getElementById('scheduleForm').reset();
-}
-
-async function submitSchedule(e) {
-    e.preventDefault();
-    const fd   = new FormData(e.target);
     const body = {
-        zone_id:         parseInt(fd.get('zone_id')),
-        name:            fd.get('name'),
-        cron_expression: fd.get('cron_expression'),
-        duration_sec:    parseInt(fd.get('duration_sec')),
-        skip_if_moist:   fd.get('skip_if_moist') === 'on',
-        skip_threshold:  parseInt(fd.get('skip_threshold')),
+        kind: 'pond_level',
+        enabled: document.getElementById('apEnabled').checked,
+        config: {
+            below_in:        parseFloat(document.getElementById('apBelow').value),
+            source:          box.querySelector('input[name="apSource"]:checked')?.value,
+            low_mark_in:     parseFloat(document.getElementById('apLow').value),
+            allow_below_low: document.getElementById('apAllowLow').checked,
+        },
     };
-    const res = await apiFetch('/api/schedules.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (data.success) { closeScheduleModal(); fetchAll(); }
-    else alert('Error: ' + data.error);
+    autoSaving = true;
+    box.querySelectorAll('input, select').forEach(el => el.disabled = true);
+    try {
+        const res  = await apiFetch('/api/automation.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.error) alert('Not saved: ' + data.error);
+        else automation = data;
+    } catch (err) {
+        if (err.message !== 'session_expired') alert('Network error — rule not saved.');
+    } finally {
+        autoSaving = false;
+        box.remove();   // rebuild from the saved rule (or put the old choices back)
+        renderAutomation();
+    }
 }
 
-async function toggleSchedule(id, enabled) {
-    await apiFetch('/api/schedules.php', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, enabled }),
-    });
-    fetchAll();
+// Timed runs: run a source for 20 min–6 h from start times on chosen days. The card is
+// built from the saved list and rebuilt after each save (or if the list changed in
+// another window); polling only updates each run's status line.
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+let timedSaving = false;
+
+function minutesText(m) {
+    const h = Math.floor(m / 60), r = m % 60;
+    return [h ? `${h} h` : '', r ? `${r} min` : ''].filter(Boolean).join(' ');
 }
 
-async function deleteSchedule(id) {
-    if (!confirm('Delete this schedule?')) return;
-    await apiFetch('/api/schedules.php', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+function timeText(hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function timedRunStatus(run) {
+    if (!run.enabled)       return '<span class="auto-muted">Off</span>';
+    if (run.running_until)  return `<strong class="auto-on">Running</strong> until ${new Date(run.running_until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    if (!run.times.length)  return '<span class="auto-warn">Add a start time</span>';
+    if (!run.days.length)   return '<span class="auto-warn">Pick at least one day</span>';
+    const next = new Date(run.next_start);
+    return `Next: ${next.toLocaleDateString([], { weekday: 'short' })} ${next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+         + (automation.pond_level?.auto_mode ? '' : ' <span class="auto-muted">(paused: Auto Mode is off)</span>');
+}
+
+function renderTimedRuns() {
+    const wrap = document.getElementById('autoTimedWrap');
+    const tr   = automation?.timed_runs;
+    if (!tr || timedSaving) return;
+    const ids  = tr.runs.map(r => r.id).join(',');
+    if (wrap.dataset.ids !== ids || !document.getElementById('autoTimed')) {
+        wrap.dataset.ids = ids;
+        const sources = automation.pond_level.choices.sources;
+        const lengths = [];
+        for (let m = tr.step_min; m <= tr.max_min; m += tr.step_min) lengths.push(m);
+        wrap.innerHTML = `
+          <div class="auto-rule" id="autoTimed">
+            <div class="auto-rule-head"><h3>Timed runs</h3>
+              <button class="btn-primary" onclick="addTimedRun()">+ Add timed run</button></div>
+            ${tr.runs.length ? '' : '<div class="auto-muted">No timed runs yet. Add one to run the Creek, the Pond Fountain or Pond Fill at set times.</div>'}
+            ${tr.runs.map((run, i) => `
+              <div class="timed-run" data-i="${i}">
+                <div class="timed-head">
+                  <label class="toggle" title="Turn this run on or off">
+                    <input type="checkbox" ${run.enabled ? 'checked' : ''} onchange="editTimedRun(${i}, 'enabled', this.checked)">
+                    <span class="slider"></span>
+                  </label>
+                  <div class="auto-radios timed-sources" role="radiogroup" aria-label="What to run">
+                    ${Object.entries(sources).map(([k, label]) => `
+                      <label class="auto-radio"><input type="radio" name="trSource${run.id}" value="${k}" ${run.source === k ? 'checked' : ''}
+                        onchange="editTimedRun(${i}, 'source', this.value)"> ${escHtml(label)}</label>`).join('')}
+                  </div>
+                  <button class="btn-danger" onclick="deleteTimedRun(${i})" title="Delete this timed run">Delete</button>
+                </div>
+                <div class="auto-line">Run for
+                  <select onchange="editTimedRun(${i}, 'minutes', parseInt(this.value))">
+                    ${lengths.map(m => `<option value="${m}" ${m === run.minutes ? 'selected' : ''}>${minutesText(m)}</option>`).join('')}
+                  </select>
+                  starting at:</div>
+                <div class="timed-times">
+                  ${run.times.map((t, j) => `<span class="timed-chip">${timeText(t)}
+                    <button title="Remove ${timeText(t)}" aria-label="Remove ${timeText(t)}" onclick="removeTimedTime(${i}, ${j})">×</button></span>`).join('')}
+                  ${run.times.length < tr.max_times ? `<span class="timed-add">
+                    <input type="time" id="trNew${i}" aria-label="New start time">
+                    <button class="btn-close" onclick="addTimedTime(${i})">Add time</button></span>` : ''}
+                </div>
+                <div class="timed-days" role="group" aria-label="Days of the week">
+                  ${DAY_LETTERS.map((d, n) => `<label class="day-btn" title="${DAY_NAMES[n]}">
+                    <input type="checkbox" ${run.days.includes(n) ? 'checked' : ''} onchange="toggleTimedDay(${i}, ${n}, this.checked)">
+                    <span>${d}</span></label>`).join('')}
+                  <button class="btn-link" onclick="setTimedDays(${i}, [0,1,2,3,4,5,6])">Every day</button>
+                </div>
+                <div class="timed-status" id="trStatus${run.id}"></div>
+              </div>`).join('')}
+            <div class="auto-muted timed-foot" id="trLast"></div>
+          </div>`;
+    }
+    tr.runs.forEach(run => {
+        const el = document.getElementById(`trStatus${run.id}`);
+        if (el) el.innerHTML = timedRunStatus(run);
     });
-    fetchAll();
+    document.getElementById('trLast').textContent = tr.last_action
+        ? `Last: ${tr.last_action} (${new Date(tr.last_at).toLocaleString()})` : '';
+}
+
+// The saved list without the status fields, for editing
+function timedRunsCopy() {
+    return automation.timed_runs.runs.map(({ id, enabled, source, minutes, times, days }) =>
+        ({ id, enabled, source, minutes, times: [...times], days: [...days] }));
+}
+
+async function saveTimedRuns(runs) {
+    timedSaving = true;
+    document.querySelectorAll('#autoTimed input, #autoTimed select, #autoTimed button').forEach(el => el.disabled = true);
+    try {
+        const res  = await apiFetch('/api/automation.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'timed_runs', runs }),
+        });
+        const data = await res.json();
+        if (data.error) alert('Not saved: ' + data.error);
+        else automation = data;
+    } catch (err) {
+        if (err.message !== 'session_expired') alert('Network error — timed runs not saved.');
+    } finally {
+        timedSaving = false;
+        document.getElementById('autoTimed')?.remove();   // rebuild from what's saved
+        renderTimedRuns();
+    }
+}
+
+function editTimedRun(i, field, value) {
+    const runs = timedRunsCopy();
+    runs[i][field] = value;
+    saveTimedRuns(runs);
+}
+
+function addTimedRun() {
+    const runs = timedRunsCopy();
+    runs.push({ enabled: true, source: 'fountain', minutes: 60, times: ['06:00'], days: [0, 1, 2, 3, 4, 5, 6] });
+    saveTimedRuns(runs);
+}
+
+function deleteTimedRun(i) {
+    const run = automation.timed_runs.runs[i];
+    if (!confirm(`Delete the timed run for ${automation.pond_level.choices.sources[run.source]}?`)) return;
+    const runs = timedRunsCopy();
+    runs.splice(i, 1);
+    saveTimedRuns(runs);
+}
+
+function addTimedTime(i) {
+    const v = document.getElementById(`trNew${i}`).value;
+    if (!v) { alert('Pick a time first.'); return; }
+    const runs = timedRunsCopy();
+    if (runs[i].times.includes(v)) { alert(`${timeText(v)} is already a start time.`); return; }
+    runs[i].times.push(v);
+    saveTimedRuns(runs);
+}
+
+function removeTimedTime(i, j) {
+    const runs = timedRunsCopy();
+    runs[i].times.splice(j, 1);
+    saveTimedRuns(runs);
+}
+
+function toggleTimedDay(i, day, on) {
+    const runs = timedRunsCopy();
+    runs[i].days = on ? [...runs[i].days, day] : runs[i].days.filter(d => d !== day);
+    saveTimedRuns(runs);
+}
+
+function setTimedDays(i, days) {
+    const runs = timedRunsCopy();
+    runs[i].days = days;
+    saveTimedRuns(runs);
 }
 
 // ── Events table ──────────────────────────────────────────────────────────────
@@ -952,6 +1168,7 @@ async function toggleAutoMode(e) {
             toggle.checked = !toggle.checked;
             alert('Error: ' + (data.error || 'Could not save Auto Mode'));
         }
+        else fetchAll();   // the Automation panel shows whether it's paused
     } catch (err) {
         if (err.message !== 'session_expired') {
             toggle.checked = !toggle.checked;

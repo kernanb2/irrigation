@@ -157,6 +157,20 @@ class PondLevel {
         return $out;
     }
 
+    // The 3-hour average distance up to now (temperature corrected when that's on), for
+    // automation: null if there's no reading in the last $staleSec
+    public static function recentAvgMm(int $staleSec): ?float {
+        $rows = Database::get()->query("
+            SELECT distance_mm, temp_c, TIMESTAMPDIFF(SECOND, recorded_at, NOW()) AS ago
+            FROM pond_level_readings WHERE recorded_at >= NOW() - INTERVAL " . self::AVG_SEC . " SECOND
+        ")->fetchAll();
+        if (!$rows || min(array_column($rows, 'ago')) > $staleSec) return null;
+        $on  = self::tempCompOn();
+        $sum = 0;
+        foreach ($rows as $r) $sum += self::corrected((int)$r['distance_mm'], $r['temp_c'] !== null ? (float)$r['temp_c'] : null, $on);
+        return $sum / count($rows);
+    }
+
     // ── Slow changes (evaporation, seepage) ──────────────────────────────────────
     // One reading wanders about ±2 mm, but the average of a day's 48 readings is good
     // to a fraction of a millimetre, so a 0.1 in/day drop that the 0.5 in hold hides

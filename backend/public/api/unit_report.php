@@ -7,6 +7,9 @@ require_once __DIR__ . '/../../src/Database.php';
 require_once __DIR__ . '/../../src/Auth.php';
 require_once __DIR__ . '/../../src/ZoneUnit.php';
 require_once __DIR__ . '/../../src/PondLevel.php';
+require_once __DIR__ . '/../../src/PondFill.php';
+require_once __DIR__ . '/../../src/PondDrain.php';
+require_once __DIR__ . '/../../src/PondAutomation.php';
 
 header('Content-Type: application/json');
 

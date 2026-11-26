@@ -128,18 +128,33 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 
 - **URL:** `https://paradisepond.tech/irrigation/`
 - **Public files:** `backend/public/` — index.php, login.php, css/style.css, js/app.js
-- **API endpoints:** `backend/public/api/` — status.php, valve.php, unit_report.php, schedules.php, settings.php, events.php (plus Unit E: filter.php, filter_report.php, drain.php, fill.php)
-- **PHP classes:** `backend/src/` — Auth.php, Database.php, ZoneUnit.php (plus Unit E: FilterFlush.php, PondDrain.php, PondFill.php)
+- **API endpoints:** `backend/public/api/` — status.php, valve.php, unit_report.php, automation.php, schedules.php (no longer on the page), settings.php, events.php (plus Unit E: filter.php, filter_report.php, drain.php, fill.php)
+- **PHP classes:** `backend/src/` — Auth.php, Database.php, ZoneUnit.php, PondLevel.php, PondAutomation.php (plus Unit E: FilterFlush.php, PondDrain.php, PondFill.php)
 - **Config:** `backend/config/config.php` — DB connection, API key, timezone (America/Chicago), BASE_PATH=/irrigation
-- **Cron:** `backend/cron/check_schedules.php` — evaluates schedules and moisture thresholds
+- **Cron:** `backend/cron/check_schedules.php` — evaluates the old cron-expression schedules. It isn't installed in a crontab, and the Schedules panel has been replaced by Automation.
 - **DB:** MySQL, database name `irrigation`
 - **Apache config:** `backend/apache/irrigation.conf`
-- **Dashboard:** polls every 15s — valve states, moisture bars, unit online/offline pills, schedules, event log
+- **Dashboard:** polls every 15s — valve states, moisture bars, unit online/offline pills, Automation panel, event log
 
 ### DB Tables
-`users`, `units`, `unit_status`, `zones`, `moisture_readings`, `temperature_readings`, `valve_events`, `schedules`, `pending_closes` (no longer used), `sensor_calibration`, `settings`
+`users`, `units`, `unit_status`, `zones`, `moisture_readings`, `temperature_readings`, `valve_events`, `schedules`, `automation_rules`, `pending_closes` (no longer used), `sensor_calibration`, `settings`
 
 `zones.desired_state` / `desired_until` / `desired_trigger` / `desired_by` hold what the web page or a schedule wants; `zones.valve_state` is what the unit last reported. `unit_status` holds each zone unit's last check-in and event-log cursor.
+
+### Automation panel
+Rules are set up with dropdowns, radio buttons and switches; each change saves straight away (`api/automation.php`). One row per rule in `automation_rules` (`config` = the choices, `state` = what the rule started and its last action). Rules work only while **Auto Mode** is on.
+
+**Pond level** (`PondAutomation.php`, run on each of Unit D's once-a-minute pond readings and on save):
+- When the pond is *x* in below full (0.5–6 in), it fills from one source: Unit E **Pond Fill** (runs of 4 h, started again while still low), the **Creek** (Zone 1) or the **Pond Fountain** (Zone 21). Zone valves are opened for an hour and extended each minute. It stops when the pond is back to full. "Full" is the normal level from the Pond Level card, and the level is the 3-hour average.
+- **Low water mark** (2–24 in below full): the Pond Drain is closed so the tanks stop taking pond water. Its position is remembered and put back once the pond is 0.5 in above the mark, or when the override is turned on, the rule is turned off, or Auto Mode is turned off. It's never touched during a Pond Fill run.
+- **Override** switch: allow the pond below the low water mark (the drain is left alone).
+- It only stops what it started (zone runs carry `desired_by` = "Pond automation"). If Unit D goes quiet, the zone valves close within an hour on their own timers.
+
+**Timed runs** (`TimedRuns.php`, all in one `automation_rules` row, kind `timed_runs`):
+- Each run is one source (Pond Fill, Creek or Pond Fountain) for 20 min–6 h in 20-minute steps, with up to 12 start times and any days of the week. A run belongs to the day it starts, so it can carry on past midnight. Overlapping windows for the same source merge.
+- There's no cron. `TimedRuns::tick()` runs on the units' check-ins (`unit_report.php`, `filter_report.php`) and does its work at most once every 20 s (gate: setting `automation_tick`). A start missed while the server was down still runs for the time left.
+- Creek and Fountain valves get an end time of at most 1 h, pushed out on each tick. Pond Fill is started for the run rounded up to whole hours and stopped by the server at the end.
+- A run leaves alone a valve that someone opened by hand, and doesn't restart one stopped by hand before the next start time. It takes over from the Pond level rule and hands back to it at the end; while a timed run has a source, the Pond level rule doesn't start or stop it.
 
 ### Key Settings Rows (settings table)
 `auto_mode_enabled`, `moisture_trigger_threshold`, `creek_pond_interlock`, `max_zone_duration_sec`

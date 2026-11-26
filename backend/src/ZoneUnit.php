@@ -142,6 +142,22 @@ class ZoneUnit {
         } catch (Throwable $e) {
             error_log("Unit $unitId report storage failed: " . $e->getMessage());
         }
+
+        // Each pond reading (once a minute) runs the Pond level automation rule
+        if ($pondMm !== null) {
+            try {
+                PondAutomation::evaluate();
+            } catch (Throwable $e) {
+                error_log("Pond automation failed: " . $e->getMessage());
+            }
+        }
+
+        // Timed runs use the check-ins as their clock (at most one check every 20 s)
+        try {
+            TimedRuns::tick();
+        } catch (Throwable $e) {
+            error_log("Timed runs failed: " . $e->getMessage());
+        }
     }
 
     // Events carry boot_id + seq so a report sent twice isn't logged twice.

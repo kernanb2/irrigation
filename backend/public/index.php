@@ -52,21 +52,11 @@ Auth::require();
     <!-- Unit E (rendered separately so polling doesn't reset an open dropdown) -->
     <div id="extraUnits" class="zone-grid"></div>
 
-    <!-- Schedules panel -->
-    <section class="panel" id="schedulesPanel">
-      <div class="panel-header">
-        <h2>Schedules</h2>
-        <button class="btn-primary" onclick="openScheduleModal()">+ Add Schedule</button>
-      </div>
-      <table id="schedulesTable">
-        <thead>
-          <tr>
-            <th>Zone</th><th>Name</th><th>Cron</th>
-            <th>Duration</th><th>Skip if Moist</th><th>Active</th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <!-- Automation panel (rules are built once; polling only updates their status) -->
+    <section class="panel" id="automationPanel">
+      <div class="panel-header"><h2>Automation</h2></div>
+      <div id="automationNote" class="auto-note hidden"></div>
+      <div id="automationRules" class="auto-rules"><div class="loading">Loading…</div></div>
     </section>
 
     <!-- Event log -->
@@ -80,39 +70,6 @@ Auth::require();
       </table>
     </section>
   </main>
-
-  <!-- Add Schedule Modal -->
-  <div id="scheduleModal" class="modal hidden">
-    <div class="modal-box">
-      <h3>Add Schedule</h3>
-      <form id="scheduleForm">
-        <label>Zone
-          <select name="zone_id" required id="schedZone"></select>
-        </label>
-        <label>Name
-          <input type="text" name="name" placeholder="e.g. Morning run">
-        </label>
-        <label>Cron Expression
-          <input type="text" name="cron_expression" placeholder="0 6 * * 1,3,5" required>
-          <small>Standard 5-field cron: min hour day month weekday</small>
-        </label>
-        <label>Duration (seconds)
-          <input type="number" name="duration_sec" min="30" max="3600" value="600" required>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" name="skip_if_moist" checked>
-          Skip if soil moisture &gt; threshold
-        </label>
-        <label>Skip threshold (% moisture)
-          <input type="number" name="skip_threshold" min="0" max="100" value="60">
-        </label>
-        <div class="modal-actions">
-          <button type="button" onclick="closeScheduleModal()">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script>const BASE = '<?= BASE_PATH ?>';</script>
