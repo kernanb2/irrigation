@@ -156,6 +156,11 @@ Rules are set up with dropdowns, radio buttons and switches; each change saves s
 - Creek and Fountain valves get an end time of at most 1 h, pushed out on each tick. Pond Fill is started for the run rounded up to whole hours and stopped by the server at the end.
 - A run leaves alone a valve that someone opened by hand, and doesn't restart one stopped by hand before the next start time. It takes over from the Pond level rule and hands back to it at the end; while a timed run has a source, the Pond level rule doesn't start or stop it.
 
+**Zone watering** (the same timed-run engine and list; the page shows zone runs on their own card):
+- Sources `zone22`–`zone24` (`TimedRuns::ZONE_SOURCES`; add more zones there). Same run lengths, start times and days as timed runs.
+- **Skip if soil moisture is above** 20–90% (or never skip): checked once at each start against the zone's latest `moisture_readings` row from the last hour. A start that's skipped isn't retried later in that run; no recent reading = water anyway. The last skip shows on the run for a day.
+- Zones 23/24 have no sensors yet: their unconnected inputs read random values (0–99%), so use "never skip" on those until the sensors are fitted.
+
 ### Key Settings Rows (settings table)
 `auto_mode_enabled`, `moisture_trigger_threshold`, `creek_pond_interlock`, `max_zone_duration_sec`
 

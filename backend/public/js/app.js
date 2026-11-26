@@ -871,7 +871,7 @@ function renderAutomation() {
     const rule  = automation?.pond_level;
     if (!rule) { rules.innerHTML = '<div class="loading">Automation not available.</div>'; return; }
     if (!document.getElementById('autoPondWrap')) {
-        rules.innerHTML = '<div id="autoPondWrap"></div><div id="autoTimedWrap"></div>';
+        rules.innerHTML = '<div id="autoPondWrap"></div><div id="autoTimedWrap"></div><div id="autoZoneWrap"></div>';
     }
     renderTimedRuns();
     const box = document.getElementById('autoPondWrap');
@@ -975,11 +975,20 @@ async function savePondRule(changed) {
     }
 }
 
-// Timed runs: run a source for 20 min–6 h from start times on chosen days. The card is
-// built from the saved list and rebuilt after each save (or if the list changed in
+// Timed runs and Zone watering: run a source for 20 min–6 h from start times on chosen
+// days. Both cards come from the one saved list (pond sources on Timed runs, irrigation
+// zones on Zone watering). A card is rebuilt after each save (or if its list changed in
 // another window); polling only updates each run's status line.
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const RUN_CARDS = [
+    { wrap: 'autoTimedWrap', id: 'autoTimed', title: 'Timed runs', zones: false, add: '+ Add timed run',
+      empty: 'No timed runs yet. Add one to run the Creek, the Pond Fountain or Pond Fill at set times.',
+      fresh: { source: 'fountain', minutes: 60 } },
+    { wrap: 'autoZoneWrap', id: 'autoZones', title: 'Zone watering', zones: true, add: '+ Add zone watering',
+      empty: 'No zone watering yet. Add one to water a zone at set times, skipping it when the soil is already wet.',
+      fresh: { source: 'zone22', minutes: 20, skip_above_pct: 60 } },
+];
 let timedSaving = false;
 
 function minutesText(m) {
@@ -992,33 +1001,51 @@ function timeText(hhmm) {
     return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-function timedRunStatus(run) {
-    if (!run.enabled)       return '<span class="auto-muted">Off</span>';
-    if (run.running_until)  return `<strong class="auto-on">Running</strong> until ${new Date(run.running_until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-    if (!run.times.length)  return '<span class="auto-warn">Add a start time</span>';
-    if (!run.days.length)   return '<span class="auto-warn">Pick at least one day</span>';
-    const next = new Date(run.next_start);
-    return `Next: ${next.toLocaleDateString([], { weekday: 'short' })} ${next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-         + (automation.pond_level?.auto_mode ? '' : ' <span class="auto-muted">(paused: Auto Mode is off)</span>');
+const clockText = iso => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const dayClockText = iso => `${new Date(iso).toLocaleDateString([], { weekday: 'short' })} ${clockText(iso)}`;
+
+function timedRunStatus(run, tr) {
+    const lines = [];
+    if (!run.enabled)           lines.push('<span class="auto-muted">Off</span>');
+    else if (run.running_until) lines.push(`<strong class="auto-on">Running</strong> until ${clockText(run.running_until)}`);
+    else if (!run.times.length) lines.push('<span class="auto-warn">Add a start time</span>');
+    else if (!run.days.length)  lines.push('<span class="auto-warn">Pick at least one day</span>');
+    else lines.push(`Next: ${dayClockText(run.next_start)}`
+         + (automation.pond_level?.auto_mode ? '' : ' <span class="auto-muted">(paused: Auto Mode is off)</span>'));
+    const z = tr.zone_sources[run.source];
+    if (z) {
+        lines.push(z.moisture_pct === null
+            ? '<span class="auto-muted">Soil moisture: no recent reading. It will water.</span>'
+            : `<span class="auto-muted">Soil moisture now: ${z.moisture_pct}%</span>`);
+        if (run.last_skipped) lines.push(`<span class="auto-warn">Skipped ${dayClockText(run.last_skipped.at)}: moisture ${run.last_skipped.pct}% was above ${run.skip_above_pct}%</span>`);
+    }
+    return lines.join(' · ');
 }
 
 function renderTimedRuns() {
-    const wrap = document.getElementById('autoTimedWrap');
-    const tr   = automation?.timed_runs;
+    const tr = automation?.timed_runs;
     if (!tr || timedSaving) return;
-    const ids  = tr.runs.map(r => r.id).join(',');
-    if (wrap.dataset.ids !== ids || !document.getElementById('autoTimed')) {
+    RUN_CARDS.forEach(card => renderRunCard(card, tr));
+}
+
+function renderRunCard(card, tr) {
+    const wrap = document.getElementById(card.wrap);
+    if (!wrap) return;
+    // Global index into the saved list, so edits on either card save the whole list
+    const mine = tr.runs.map((run, i) => ({ run, i })).filter(({ run }) => (run.source in tr.zone_sources) === card.zones);
+    const ids  = mine.map(({ run }) => run.id).join(',');
+    if (wrap.dataset.ids !== ids || !document.getElementById(card.id)) {
         wrap.dataset.ids = ids;
-        const sources = automation.pond_level.choices.sources;
+        const sources = Object.fromEntries(Object.entries(tr.sources).filter(([k]) => (k in tr.zone_sources) === card.zones));
         const lengths = [];
         for (let m = tr.step_min; m <= tr.max_min; m += tr.step_min) lengths.push(m);
         wrap.innerHTML = `
-          <div class="auto-rule" id="autoTimed">
-            <div class="auto-rule-head"><h3>Timed runs</h3>
-              <button class="btn-primary" onclick="addTimedRun()">+ Add timed run</button></div>
-            ${tr.runs.length ? '' : '<div class="auto-muted">No timed runs yet. Add one to run the Creek, the Pond Fountain or Pond Fill at set times.</div>'}
-            ${tr.runs.map((run, i) => `
-              <div class="timed-run" data-i="${i}">
+          <div class="auto-rule" id="${card.id}">
+            <div class="auto-rule-head"><h3>${card.title}</h3>
+              <button class="btn-primary" onclick="addTimedRun('${card.id}')">${card.add}</button></div>
+            ${mine.length ? '' : `<div class="auto-muted">${card.empty}</div>`}
+            ${mine.map(({ run, i }) => `
+              <div class="timed-run">
                 <div class="timed-head">
                   <label class="toggle" title="Turn this run on or off">
                     <input type="checkbox" ${run.enabled ? 'checked' : ''} onchange="editTimedRun(${i}, 'enabled', this.checked)">
@@ -1029,9 +1056,9 @@ function renderTimedRuns() {
                       <label class="auto-radio"><input type="radio" name="trSource${run.id}" value="${k}" ${run.source === k ? 'checked' : ''}
                         onchange="editTimedRun(${i}, 'source', this.value)"> ${escHtml(label)}</label>`).join('')}
                   </div>
-                  <button class="btn-danger" onclick="deleteTimedRun(${i})" title="Delete this timed run">Delete</button>
+                  <button class="btn-danger" onclick="deleteTimedRun(${i})" title="Delete this run">Delete</button>
                 </div>
-                <div class="auto-line">Run for
+                <div class="auto-line">${card.zones ? 'Water for' : 'Run for'}
                   <select onchange="editTimedRun(${i}, 'minutes', parseInt(this.value))">
                     ${lengths.map(m => `<option value="${m}" ${m === run.minutes ? 'selected' : ''}>${minutesText(m)}</option>`).join('')}
                   </select>
@@ -1049,28 +1076,37 @@ function renderTimedRuns() {
                     <span>${d}</span></label>`).join('')}
                   <button class="btn-link" onclick="setTimedDays(${i}, [0,1,2,3,4,5,6])">Every day</button>
                 </div>
+                ${card.zones ? `<div class="auto-line">Skip if soil moisture is above
+                  <select onchange="editTimedRun(${i}, 'skip_above_pct', this.value === '' ? null : parseInt(this.value))">
+                    <option value="" ${run.skip_above_pct === null ? 'selected' : ''}>never skip</option>
+                    ${tr.skip_pct.map(p => `<option value="${p}" ${p === run.skip_above_pct ? 'selected' : ''}>${p}%</option>`).join('')}
+                  </select></div>` : ''}
                 <div class="timed-status" id="trStatus${run.id}"></div>
               </div>`).join('')}
-            <div class="auto-muted timed-foot" id="trLast"></div>
+            <div class="auto-muted timed-foot" id="${card.id}Last"></div>
           </div>`;
     }
-    tr.runs.forEach(run => {
+    mine.forEach(({ run }) => {
         const el = document.getElementById(`trStatus${run.id}`);
-        if (el) el.innerHTML = timedRunStatus(run);
+        if (el) el.innerHTML = timedRunStatus(run, tr);
     });
-    document.getElementById('trLast').textContent = tr.last_action
+    // The last action, on the card whose source it was about
+    const mineLast = tr.last_action && Object.entries(tr.sources)
+        .some(([k, label]) => (k in tr.zone_sources) === card.zones && tr.last_action.includes(label));
+    document.getElementById(`${card.id}Last`).textContent = mineLast
         ? `Last: ${tr.last_action} (${new Date(tr.last_at).toLocaleString()})` : '';
 }
 
 // The saved list without the status fields, for editing
 function timedRunsCopy() {
-    return automation.timed_runs.runs.map(({ id, enabled, source, minutes, times, days }) =>
-        ({ id, enabled, source, minutes, times: [...times], days: [...days] }));
+    return automation.timed_runs.runs.map(({ id, enabled, source, minutes, times, days, skip_above_pct }) =>
+        ({ id, enabled, source, minutes, times: [...times], days: [...days], skip_above_pct }));
 }
 
 async function saveTimedRuns(runs) {
     timedSaving = true;
-    document.querySelectorAll('#autoTimed input, #autoTimed select, #autoTimed button').forEach(el => el.disabled = true);
+    document.querySelectorAll('.timed-run input, .timed-run select, .timed-run button, .auto-rule-head .btn-primary')
+        .forEach(el => el.disabled = true);
     try {
         const res  = await apiFetch('/api/automation.php', {
             method: 'POST',
@@ -1081,29 +1117,32 @@ async function saveTimedRuns(runs) {
         if (data.error) alert('Not saved: ' + data.error);
         else automation = data;
     } catch (err) {
-        if (err.message !== 'session_expired') alert('Network error — timed runs not saved.');
+        if (err.message !== 'session_expired') alert('Network error — not saved.');
     } finally {
         timedSaving = false;
-        document.getElementById('autoTimed')?.remove();   // rebuild from what's saved
-        renderTimedRuns();
+        RUN_CARDS.forEach(c => document.getElementById(c.id)?.remove());   // rebuild from what's saved
+        renderAutomation();
     }
 }
 
 function editTimedRun(i, field, value) {
     const runs = timedRunsCopy();
     runs[i][field] = value;
+    // Moisture skip is only for zones
+    if (field === 'source' && !(value in automation.timed_runs.zone_sources)) runs[i].skip_above_pct = null;
     saveTimedRuns(runs);
 }
 
-function addTimedRun() {
+function addTimedRun(cardId) {
+    const card = RUN_CARDS.find(c => c.id === cardId);
     const runs = timedRunsCopy();
-    runs.push({ enabled: true, source: 'fountain', minutes: 60, times: ['06:00'], days: [0, 1, 2, 3, 4, 5, 6] });
+    runs.push({ enabled: true, times: ['06:00'], days: [0, 1, 2, 3, 4, 5, 6], skip_above_pct: null, ...card.fresh });
     saveTimedRuns(runs);
 }
 
 function deleteTimedRun(i) {
     const run = automation.timed_runs.runs[i];
-    if (!confirm(`Delete the timed run for ${automation.pond_level.choices.sources[run.source]}?`)) return;
+    if (!confirm(`Delete this run for ${automation.timed_runs.sources[run.source]}?`)) return;
     const runs = timedRunsCopy();
     runs.splice(i, 1);
     saveTimedRuns(runs);

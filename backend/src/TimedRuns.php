@@ -1,7 +1,8 @@
 <?php
 // Automation: timed runs, set up on the dashboard's Automation panel.
 //
-// Each timed run is one source (Unit E Pond Fill, the Creek or the Pond Fountain) run
+// Each timed run is one source (Unit E Pond Fill, the Creek, the Pond Fountain, or an
+// irrigation zone — Zone watering on the page) run
 // for a length of time (20 min to 6 h, in 20-minute steps) from one or more start
 // times, on the days of the week picked. All the timed runs are kept in one
 // automation_rules row (kind 'timed_runs'): config = {"runs": [...]}, state = what's
@@ -21,6 +22,10 @@
 // A run never takes over a valve that was already running by hand: it leaves it
 // alone. If someone stops a run partway, it isn't restarted until the next start time.
 // Runs only take over from (and hand back to) the Pond level rule.
+//
+// Irrigation zones (ZONE_SOURCES) can skip a start when the soil is already wet: if the
+// zone's latest moisture reading (from the last MOIST_MAX_AGE_SEC) is above the run's
+// skip_above_pct, that start is skipped. No recent reading = water anyway.
 require_once __DIR__ . '/ZoneUnit.php';
 require_once __DIR__ . '/PondLevel.php';
 require_once __DIR__ . '/PondFill.php';
@@ -35,6 +40,41 @@ class TimedRuns {
     const MAX_TIMES = 12;            // start times per run
     const MAX_RUNS  = 20;
     const TICK_SEC  = 20;
+    const ZONE_SOURCES = ['zone22' => 22, 'zone23' => 23, 'zone24' => 24];   // more zones later
+    const SKIP_PCT     = [20, 30, 40, 50, 60, 70, 80, 90];   // "skip if moisture above" choices
+    const MOIST_MAX_AGE_SEC = 3600;
+
+    // Every source a timed run can use: key => label
+    public static function sources(): array {
+        $out  = PondAutomation::SOURCES;
+        $ids  = implode(',', self::ZONE_SOURCES);
+        $names = Database::get()->query("SELECT id, name FROM zones WHERE id IN ($ids)")->fetchAll(PDO::FETCH_KEY_PAIR);
+        foreach (self::ZONE_SOURCES as $k => $id) $out[$k] = $names[$id] ?? "Zone $id";
+        return $out;
+    }
+
+    private static function zoneOf(string $src): ?int {
+        return PondAutomation::ZONES[$src] ?? self::ZONE_SOURCES[$src] ?? null;
+    }
+
+    private static function isRunningNow(string $src): bool {
+        if ($src === 'pond_fill') return PondFill::desired()['active'];
+        $stmt = Database::get()->prepare("SELECT desired_state = 'open' AND desired_until > NOW() FROM zones WHERE id = ?");
+        $stmt->execute([self::zoneOf($src)]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    // A zone's latest moisture % from the last MOIST_MAX_AGE_SEC, or null
+    public static function moisture(int $zoneId): ?int {
+        $stmt = Database::get()->prepare("
+            SELECT moisture_pct FROM moisture_readings
+            WHERE zone_id = ? AND recorded_at >= NOW() - INTERVAL " . self::MOIST_MAX_AGE_SEC . " SECOND
+            ORDER BY recorded_at DESC LIMIT 1
+        ");
+        $stmt->execute([$zoneId]);
+        $v = $stmt->fetchColumn();
+        return $v === false || $v === null ? null : (int)$v;
+    }
 
     private static function row(): array {
         $row = Database::get()->query("SELECT enabled, config, state FROM automation_rules WHERE kind = '" . self::KIND . "'")->fetch();
@@ -53,12 +93,15 @@ class TimedRuns {
     // Check and store the list from the page; returns an error message or null
     public static function save(array $runs): ?string {
         if (count($runs) > self::MAX_RUNS) return 'Too many timed runs';
-        $out = []; $nextId = 1;
+        $out = []; $nextId = 1; $sources = self::sources();
         foreach ($runs as $r) $nextId = max($nextId, (int)($r['id'] ?? 0) + 1);
         foreach ($runs as $r) {
             $source  = (string)($r['source'] ?? '');
             $minutes = (int)($r['minutes'] ?? 0);
-            if (!isset(PondAutomation::SOURCES[$source])) return 'Pick what to run';
+            if (!isset($sources[$source])) return 'Pick what to run';
+            $skip = $r['skip_above_pct'] ?? null;
+            $skip = $skip === null || $skip === '' ? null : (int)$skip;
+            if ($skip !== null && (!isset(self::ZONE_SOURCES[$source]) || !in_array($skip, self::SKIP_PCT, true))) return 'Pick a moisture level';
             if ($minutes < self::STEP_MIN || $minutes > self::MAX_MIN || $minutes % self::STEP_MIN) return 'Pick a run length';
             $times = [];
             foreach ((array)($r['times'] ?? []) as $t) {
@@ -78,6 +121,7 @@ class TimedRuns {
                 'minutes' => $minutes,
                 'times'   => $times,
                 'days'    => $days,
+                'skip_above_pct' => $skip,
             ];
         }
         Database::get()->prepare("
@@ -98,7 +142,8 @@ class TimedRuns {
                 $start = strtotime(date('Y-m-d', $day) . " $t");
                 $end   = $start + $run['minutes'] * 60;
                 if ($now >= $start && $now < $end) {
-                    $out[] = ['key' => $run['id'] . '|' . date('Y-m-d H:i', $start), 'start' => $start, 'end' => $end];
+                    $out[] = ['key' => $run['id'] . '|' . date('Y-m-d H:i', $start), 'start' => $start, 'end' => $end,
+                              'run' => $run['id'], 'skip' => $run['skip_above_pct'] ?? null];
                 }
             }
         }
@@ -146,7 +191,9 @@ class TimedRuns {
             $state['last_action'] = $msg;
             $state['last_at']     = date('Y-m-d H:i:s');
         };
-        $label = fn($s) => PondAutomation::SOURCES[$s];
+        $names = self::sources();
+        $label = fn($s) => $names[$s] ?? $s;
+        $skipped = $state['skipped'] ?? [];   // run id => last start skipped for moisture
 
         // Windows going on now, by source
         $want = [];
@@ -164,10 +211,10 @@ class TimedRuns {
             if (!$on || $now >= $end) {
                 // Hand back to the Pond level rule if it's filling with this source
                 if (PondAutomation::fillingSource() !== $src) self::stopSource($src);
-                elseif ($src !== 'pond_fill') ZoneUnit::requestValve(PondAutomation::ZONES[$src], true, 'schedule', PondAutomation::BY);
+                elseif ($src !== 'pond_fill') ZoneUnit::requestValve(self::zoneOf($src), true, 'schedule', PondAutomation::BY);
                 unset($running[$src]);
                 $note('Stopped ' . $label($src) . (!$on ? ' (Auto Mode off)' : ' (run time ended)'));
-            } elseif (!PondAutomation::sourceRunning($src)) {
+            } elseif (!self::isRunningNow($src)) {
                 unset($running[$src]);   // stopped by hand (or Unit E restarted): leave it
                 $note($label($src) . ' was stopped before the run ended');
             } else {
@@ -182,8 +229,24 @@ class TimedRuns {
             if (!$new) continue;
             foreach ($new as $w) $started[$w['key']] = $w['start'];
             if (isset($running[$src])) continue;   // already running: the end was pushed out above
+
+            // Zones: skip a start when the soil is already wetter than the run's setting
+            if (isset(self::ZONE_SOURCES[$src])) {
+                $pct = self::moisture(self::ZONE_SOURCES[$src]);
+                $go  = array_filter($new, fn($w) => $w['skip'] === null || $pct === null || $pct <= $w['skip']);
+                foreach ($new as $w) {
+                    if (!in_array($w, $go, true)) {
+                        $skipped[$w['run']] = ['at' => date('Y-m-d H:i:s', $w['start']), 'pct' => $pct];
+                        $note('Skipped ' . $label($src) . " — moisture $pct% is above " . $w['skip'] . '%');
+                    }
+                }
+                if (!$go) continue;
+                // Older windows of this source already going (none started = all were skipped) don't count
+                $windows = $go;
+            }
+
             $end = max(array_column($windows, 'end'));
-            if (PondAutomation::sourceRunning($src) && PondAutomation::fillingSource() !== $src) {
+            if (self::isRunningNow($src) && PondAutomation::fillingSource() !== $src) {
                 $note($label($src) . ' was already running by hand, so the timed run left it alone');
                 continue;
             }
@@ -197,6 +260,7 @@ class TimedRuns {
 
         $state['running'] = $running;
         $state['started'] = $started;
+        $state['skipped'] = $skipped;
         if ($state !== $row['state']) self::saveState($state);
     }
 
@@ -210,7 +274,7 @@ class TimedRuns {
                 $r['fill_until'] = time() + $hours * 3600;
             }
         } else {
-            ZoneUnit::requestValve(PondAutomation::ZONES[$src], true, 'schedule', self::BY, $left);
+            ZoneUnit::requestValve(self::zoneOf($src), true, 'schedule', self::BY, $left);
         }
     }
 
@@ -220,10 +284,10 @@ class TimedRuns {
             return;
         }
         $stmt = Database::get()->prepare("SELECT desired_state, desired_by FROM zones WHERE id = ?");
-        $stmt->execute([PondAutomation::ZONES[$src]]);
+        $stmt->execute([self::zoneOf($src)]);
         $z = $stmt->fetch();
         if ($z && $z['desired_state'] === 'open' && $z['desired_by'] === self::BY) {
-            ZoneUnit::requestValve(PondAutomation::ZONES[$src], false, 'schedule', self::BY);
+            ZoneUnit::requestValve(self::zoneOf($src), false, 'schedule', self::BY);
         }
     }
 
@@ -237,11 +301,16 @@ class TimedRuns {
             $active = self::activeWindows($run, $now);
             $isOn   = $run['enabled'] && $active && isset($running[$run['source']]);
             $next   = $run['enabled'] ? self::nextStart($run, $now) : null;
-            $runs[] = $run + [
+            $skip   = $row['state']['skipped'][$run['id']] ?? null;
+            $runs[] = $run + ['skip_above_pct' => null] + [
                 'running_until' => $isOn ? date('c', $running[$run['source']]['end']) : null,
                 'next_start'    => $next ? date('c', $next) : null,
+                'last_skipped'  => $skip && strtotime($skip['at']) > $now - 86400
+                                   ? ['at' => date('c', strtotime($skip['at'])), 'pct' => $skip['pct']] : null,
             ];
         }
+        $zones = [];
+        foreach (self::ZONE_SOURCES as $k => $id) $zones[$k] = ['zone_id' => $id, 'moisture_pct' => self::moisture($id)];
         return [
             'runs'        => $runs,
             'last_action' => $row['state']['last_action'] ?? null,
@@ -249,6 +318,9 @@ class TimedRuns {
             'step_min'    => self::STEP_MIN,
             'max_min'     => self::MAX_MIN,
             'max_times'   => self::MAX_TIMES,
+            'sources'     => self::sources(),
+            'zone_sources' => $zones,
+            'skip_pct'    => self::SKIP_PCT,
         ];
     }
 }
