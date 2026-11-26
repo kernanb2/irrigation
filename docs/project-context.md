@@ -135,6 +135,7 @@ Dry soil = high reading, wet soil = low reading. Calibrated per zone in `sensor_
 - **DB:** MySQL, database name `irrigation`
 - **Apache config:** `backend/apache/irrigation.conf`
 - **Dashboard:** polls every 15s — valve states, moisture bars, unit online/offline pills, Automation panel, event log
+- **Card help:** each card and panel has a "?" in its top-right corner that opens a box saying what the card shows. The text is in `CARD_HELP` in app.js (keyed by card); the box is `#helpModal` in index.php. Update the text when a card changes.
 
 ### DB Tables
 `users`, `units`, `unit_status`, `zones`, `moisture_readings`, `temperature_readings`, `valve_events`, `schedules`, `automation_rules`, `pending_closes` (no longer used), `sensor_calibration`, `settings`

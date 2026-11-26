@@ -130,6 +130,7 @@ function zoneCard(z) {
 
     return `
     <div class="zone-card ${isOpen ? 'valve-open' : ''} ${z.is_special == 1 ? 'special' : ''}" id="zone-${z.id}">
+      ${helpBtn(z.id == 1 ? 'creek' : z.id == 21 ? 'fountain' : 'zone')}
       <div class="zone-header">
         <div>
           <div class="zone-name">${escHtml(z.name)}</div>
@@ -164,6 +165,7 @@ function renderPond() {
     if (!box.firstElementChild) {
         box.innerHTML = `
           <div class="pond-card">
+            ${helpBtn('pond')}
             <div class="zone-header">
               <div>
                 <div class="zone-name">Pond Level</div>
@@ -398,6 +400,7 @@ function drainCard(d) {
 
     return `
     <div class="zone-card special ${isOpen ? 'valve-open' : ''}" id="pond-drain">
+      ${helpBtn('drain')}
       <div class="zone-header">
         <div>
           <div class="zone-name">Pond Drain</div>
@@ -487,6 +490,7 @@ function fillCard(p) {
 
     return `
     <div class="zone-card special ${active ? 'valve-open' : ''}" id="pond-fill">
+      ${helpBtn('fill')}
       <div class="zone-header">
         <div>
           <div class="zone-name">Pond Fill</div>
@@ -554,6 +558,7 @@ function tankDrainCard(t) {
 
     return `
     <div class="zone-card special ${isOpen ? 'valve-open' : ''}" id="tank-drain">
+      ${helpBtn('tankDrain')}
       <div class="zone-header">
         <div>
           <div class="zone-name">Storage Tank Drain</div>
@@ -788,6 +793,7 @@ function filterCard(f) {
 
     return `
     <div class="zone-card ${isOpen ? 'valve-open' : ''}" id="filter-${f.filter}">
+      ${helpBtn('filter')}
       <div class="zone-header">
         <div>
           <div class="zone-name">${escHtml(f.name)}</div>
@@ -833,7 +839,7 @@ async function setFilterCycle(n, changes) {
 // ── Valve command ─────────────────────────────────────────────────────────────
 async function valveCmd(zoneId, open) {
     const card = document.getElementById(`zone-${zoneId}`);
-    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    card.querySelectorAll('button:not(.help-btn)').forEach(b => b.disabled = true);
 
     try {
         const res  = await apiFetch('/api/valve.php', {
@@ -887,6 +893,7 @@ function renderAutomation() {
             `<option value="${v}" ${Number(v) === Number(sel) ? 'selected' : ''}>${inchText(v)}</option>`).join('');
         box.innerHTML = `
           <div class="auto-rule" id="autoPond">
+            ${helpBtn('autoPond')}
             <div class="auto-rule-head">
               <h3>Pond level</h3>
               <label class="toggle" title="Turn this rule on or off">
@@ -1042,6 +1049,7 @@ function renderRunCard(card, tr) {
         for (let m = tr.step_min; m <= tr.max_min; m += tr.step_min) lengths.push(m);
         wrap.innerHTML = `
           <div class="auto-rule" id="${card.id}">
+            ${helpBtn(card.id)}
             <div class="auto-rule-head"><h3>${card.title}</h3>
               <button class="btn-primary" onclick="addTimedRun('${card.id}')">${card.add}</button></div>
             ${mine.length ? '' : `<div class="auto-muted">${card.empty}</div>`}
@@ -1346,6 +1354,143 @@ async function toggleAutoMode(e) {
         toggle.disabled = false;
     }
 }
+
+// ── Card help ─────────────────────────────────────────────────────────────────
+// The "?" in a card's top-right corner opens a box saying what the card shows.
+// One box for the whole page (outside the cards), so the cards re-rendering every
+// few seconds can't close it.
+const ZONE_HELP = `
+  <li><b>Open / Closed</b> (top right) is what the unit last reported for the valve.</li>
+  <li><b>Open</b> runs the valve for up to 1 hour. <b>Close</b> stops it. The unit picks the change up on its next check-in (every 5 s); until then the card says "sending to Unit …".</li>
+  <li><b>Closes in …</b> is the time left on the run. Every run has an end time on the unit itself, so the valve still closes if WiFi or the server goes down.</li>
+  <li>If the unit hasn't checked in for 30 s it shows as offline, with when it was last seen, and the buttons are greyed out.</li>`;
+const MOIST_HELP = `
+  <li><b>Moisture</b> is from the soil sensor: 0% bone dry, 100% in water. The bar is red under 25%, orange to 40%, green to 65%, blue above. "No sensor data" means the input reads as if nothing is connected.</li>`;
+
+const CARD_HELP = {
+    zone: { title: 'Irrigation zone', body: `<ul>${ZONE_HELP}${MOIST_HELP}
+        <li>Zones 22–24 can be watered on a schedule from <b>Zone watering</b> in the Automation panel.</li></ul>` },
+    creek: { title: 'Creek Source', body: `<p>The valve on Unit A that opens the creek water supply. It has no moisture sensor.</p><ul>${ZONE_HELP}
+        <li>The Creek can fill the pond: the Automation panel's <b>Pond level</b> rule and <b>Timed runs</b> can open it.</li></ul>` },
+    fountain: { title: 'Pond Fountain', body: `<p>Zone 21 on Unit D runs the pond fountain.</p><ul>${ZONE_HELP}${MOIST_HELP}
+        <li>The Automation panel's <b>Pond level</b> rule and <b>Timed runs</b> can run the fountain.</li></ul>` },
+    pond: { title: 'Pond Level', body: `
+        <p>An ultrasonic sensor on Unit D measures the distance down to the water.</p>
+        <ul>
+          <li><b>▲ / ▼ … above / below normal</b>: how far the pond is from the normal (full) level.</li>
+          <li><b>Set current level as normal</b> marks today's level as full. The Pond level automation rule measures from it.</li>
+          <li><b>Water is … below the sensor</b>: the latest reading.</li>
+          <li><b>Trend over 7 days</b>: a straight-line fit through the last week, in inches per day. A fill, a drain or heavy rain pulls it for a while.</li>
+          <li><b>24 hours</b>: the 3-hour average, held flat until it moves more than 0.5 in (the sensor's accuracy), so a real change shows as a step.</li>
+          <li><b>7 / 30 days</b>: one point per day, that day's average, so slow changes like evaporation show as a slope.</li>
+          <li>Hover over the graph for the readings and water temperature.</li>
+        </ul>` },
+    filter: { title: 'Pre-filter', body: `
+        <p>Each pre-filter before the storage tank has a flush valve that opens on a cycle to wash it out.</p>
+        <ul>
+          <li><b>Open</b> (top right) means it's flushing now.</li>
+          <li><b>Start / Stop flush cycle</b> turns the cycle on or off.</li>
+          <li><b>Flush period</b>: how long the flush valve stays open. <b>Wait time between flushes</b>: how long until the next flush.</li>
+          <li>Only one pre-filter flushes at a time. "Waiting" means the other one is flushing; this one goes once that closes.</li>
+          <li>Changes reach Unit E within about 2 s ("Sending to Unit E…" until then).</li>
+        </ul>` },
+    drain: { title: 'Pond Drain', body: `
+        <p>The 2" valve at the bottom of the pond. When it's open, pond water joins the spring water and goes through the pre-filters to the storage tank.</p>
+        <ul>
+          <li>The badge shows Open, Closed or how far open it is. It takes about 9 s to open fully.</li>
+          <li><b>Open</b>, <b>Close</b> or <b>Partial open</b> (10–90%) sets it. Opening asks you to confirm first.</li>
+          <li>When the tank reaches its top sensor the drain closes by itself, and goes back to your setting once the level drops below the refill sensor.</li>
+          <li><b>Tank</b>: the storage tank level from its sensors.</li>
+          <li>During a Pond Fill or a Drain Tank run it's held fully open (tank sensors ignored).</li>
+          <li>The Pond level rule's <b>low water mark</b> can close it so the tanks stop taking pond water.</li>
+        </ul>` },
+    fill: { title: 'Pond Fill', body: `
+        <p>The 2" valve after the T where the spring water joins. It's normally open, so the spring water goes on to the storage tank.</p>
+        <ul>
+          <li><b>Start Pond Fill</b> runs for the time picked under <b>Run time</b> (1–24 hours). It opens the Pond Drain fully, then closes Pond Fill, so the spring water runs back up into the pond.</li>
+          <li>When the run ends (or you press <b>Stop Pond Fill</b>) Pond Fill opens first, then the Pond Drain goes back to its setting.</li>
+          <li>If Unit E restarts or loses power, Pond Fill opens.</li>
+          <li>The Automation panel's <b>Pond level</b> rule and <b>Timed runs</b> can start it.</li>
+        </ul>` },
+    tankDrain: { title: 'Storage Tank Drain', body: `
+        <p>The 1" valve near the bottom of the storage tank. It's normally closed.</p>
+        <ul>
+          <li><b>Drain Tank</b> runs for the time picked under <b>Run time</b> (10–120 minutes). It opens the Pond Drain and closes Pond Fill first, so no spring water flows into the tank while it empties, then opens the tank drain.</li>
+          <li>When it ends the tank drain closes, then Pond Fill opens again.</li>
+        </ul>` },
+    autoPond: { title: 'Pond level rule', body: `
+        <p>Keeps the pond full. The switch turns the rule on or off.</p>
+        <ul>
+          <li>When the pond is the chosen amount <b>below full</b>, it fills it with the source you pick (Pond Fill, the Creek or the Pond Fountain) until it's back to full.</li>
+          <li>Full is the normal level set on the Pond Level card. The level used is the 3-hour average, so the sensor's wander can't start or stop a fill.</li>
+          <li>Pond Fill runs 4 hours at a time and starts again if the pond is still low.</li>
+          <li><b>Low water mark</b>: if the pond drops that far, the Pond Drain is closed so the tanks stop taking pond water. It goes back to where it was once the pond is 0.5 in above the mark.</li>
+          <li><b>Override</b>: allow the pond to go below the low water mark. The rule then leaves the Pond Drain alone.</li>
+          <li>It only runs while Auto Mode is on, and only stops what it started.</li>
+          <li>The line at the bottom says what it's doing now and its last action.</li>
+        </ul>` },
+    autoTimed: { title: 'Timed runs', body: `
+        <p>Run the Creek, the Pond Fountain or Pond Fill at set times.</p>
+        <ul>
+          <li>Each run has a switch, what to run, how long (20 minutes to 6 hours), one or more start times and the days of the week.</li>
+          <li>Type a start time and press Enter or click away to save it. Remove one with its ×.</li>
+          <li>Each run shows whether it's running now and when it next starts.</li>
+          <li>A run that goes past midnight carries on into the next day.</li>
+          <li>If you stop the source by hand, the run leaves it stopped. It won't take over a source you started by hand.</li>
+          <li>Timed runs only work while Auto Mode is on. They're drawn on the Week Schedule.</li>
+        </ul>` },
+    autoZones: { title: 'Zone watering', body: `
+        <p>Water Zones 22–24 at set times. It works like Timed runs.</p>
+        <ul>
+          <li>Each run has a switch, the zone, how long (20 minutes to 6 hours), one or more start times and the days of the week.</li>
+          <li><b>Skip if soil moisture is above</b>: at each start the zone's latest moisture reading is checked. If it's wetter than that, that start is skipped (not retried later). With no reading in the last hour it waters anyway.</li>
+          <li>Each run shows the moisture now, when it next starts, and the last skip in the past day.</li>
+          <li>Zones 23 and 24 have no moisture sensors yet, so set them to <b>never skip</b>.</li>
+          <li>Only works while Auto Mode is on.</li>
+        </ul>` },
+    schedule: { title: 'Week Schedule', body: `
+        <p>The Timed runs and Zone watering laid out over today and the next 6 days.</p>
+        <ul>
+          <li>One row per day, midnight to midnight. Inside each day, one lane per source, each in its own colour (named in the legend).</li>
+          <li>A block is a scheduled run. Hover over it, or tap it, for its times.</li>
+          <li><b>Dashed</b>: the run is switched off. <b>White left edge</b>: it skips when the soil is wet. <b>Ring</b>: running now. <b>Striped</b>: the Pond level rule is filling now.</li>
+          <li>The dotted white line marked <b>Now</b> is the current time.</li>
+          <li>The Pond level rule isn't on a clock, so it's described in a note below the grid.</li>
+          <li><b>Show as a list</b> gives the same schedule as text.</li>
+        </ul>` },
+    events: { title: 'Valve Events', body: `
+        <p>Every valve opening and closing in the last 48 hours, newest first.</p>
+        <ul>
+          <li><b>Trigger</b>: manual (from this page) or schedule (from automation).</li>
+          <li><b>By</b>: who asked for it: your sign-in name, Pond automation, Timed run, or the unit itself.</li>
+          <li>"run time ended" means the unit closed the valve when its time ran out. "closed after restart" means it closed it at power-up.</li>
+        </ul>` },
+};
+
+function helpBtn(key) {
+    return `<button type="button" class="help-btn" onclick="showHelp('${key}', this)" title="What this card shows" aria-label="What this card shows">?</button>`;
+}
+
+let helpReturnFocus = null;
+function showHelp(key, btn) {
+    const h = CARD_HELP[key];
+    if (!h) return;
+    helpReturnFocus = btn;
+    document.getElementById('helpTitle').textContent = h.title;
+    document.getElementById('helpBody').innerHTML = h.body;
+    document.getElementById('helpModal').classList.remove('hidden');
+    document.getElementById('helpClose').focus();
+}
+
+function closeHelp() {
+    document.getElementById('helpModal').classList.add('hidden');
+    // The card may have been rebuilt meanwhile; fall back to its new "?" if so
+    if (helpReturnFocus?.isConnected) helpReturnFocus.focus();
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.getElementById('helpModal')?.classList.contains('hidden')) closeHelp();
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {

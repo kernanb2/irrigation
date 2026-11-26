@@ -61,13 +61,15 @@ Auth::require();
 
     <!-- Week schedule: the timed runs and zone watering laid out over the next 7 days -->
     <section class="panel" id="schedulePanel">
+      <button type="button" class="help-btn" onclick="showHelp('schedule', this)" title="What this card shows" aria-label="What this card shows">?</button>
       <div class="panel-header"><h2>Week Schedule</h2></div>
       <div id="weekSchedule"><div class="loading">Loading…</div></div>
     </section>
 
     <!-- Event log -->
     <section class="panel">
-      <h2>Valve Events — Last 48 Hours</h2>
+      <button type="button" class="help-btn" onclick="showHelp('events', this)" title="What this card shows" aria-label="What this card shows">?</button>
+      <div class="panel-header"><h2>Valve Events — Last 48 Hours</h2></div>
       <table id="eventsTable">
         <thead>
           <tr><th>Time</th><th>Zone</th><th>Action</th><th>Trigger</th><th>By</th></tr>
@@ -76,6 +78,15 @@ Auth::require();
       </table>
     </section>
   </main>
+
+  <!-- "?" help box: one for the whole page, filled from CARD_HELP in app.js -->
+  <div id="helpModal" class="modal hidden" onclick="if (event.target === this) closeHelp()">
+    <div class="modal-box help-box" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <h3 id="helpTitle"></h3>
+      <div id="helpBody" class="help-body"></div>
+      <div class="modal-actions"><button type="button" id="helpClose" onclick="closeHelp()">Close</button></div>
+    </div>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script>const BASE = '<?= BASE_PATH ?>';</script>

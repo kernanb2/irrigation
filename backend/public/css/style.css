@@ -610,3 +610,21 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 @media (max-width: 600px) {
   .sched-day { grid-template-columns: 64px 1fr; gap: 0.4rem; }
 }
+
+/* ── Card help ("?" top right of each card) ───────────────────────────────── */
+.zone-card, .pond-card, .auto-rule, .panel { position: relative; }
+.help-btn {
+  position: absolute; top: 0.45rem; right: 0.45rem;
+  width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  font-size: 0.75rem; font-weight: 700; line-height: 20px; text-align: center;
+  cursor: pointer; z-index: 1;
+}
+.help-btn:hover, .help-btn:focus-visible { color: var(--text); border-color: var(--blue); outline: none; }
+/* Keep the badge / buttons in each header clear of the "?" */
+.zone-card .zone-header, .pond-card .zone-header, .auto-rule-head, .panel-header { padding-right: 1.6rem; }
+.help-box { max-width: 520px; max-height: 85vh; overflow-y: auto; margin: 0 16px; }
+.help-body { font-size: 0.875rem; line-height: 1.5; }
+.help-body p { margin-bottom: 0.6rem; }
+.help-body ul { padding-left: 1.1rem; display: grid; gap: 0.4rem; }
+.help-body b { color: var(--text); }
